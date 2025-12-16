@@ -1,6 +1,7 @@
 // components/PaymentPage.jsx
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { 
   ArrowLeft, 
   QrCode, 
@@ -26,6 +27,8 @@ const PaymentPage = () => {
   const [showSuccess, setShowSuccess] = useState(false);
 
   const qrCodeImage = "/QR.jpg";
+  const location = useLocation();
+  const { course } = location.state || {};// Get course from navigation state
 
   const handleFileUpload = (event) => {
     const file = event.target.files[0];
@@ -43,6 +46,8 @@ const PaymentPage = () => {
 
     setSelectedFile(file); // ✅ Store the file
     setUploadStatus('uploading');
+     const courseTrack = course?.title || "Web Development";
+  const courseAmount = course?.price || 499;
 
     // Simulate upload process
     setTimeout(() => {
@@ -75,75 +80,81 @@ const PaymentPage = () => {
     document.body.removeChild(link);
   };
 
-  const handleConfirmEnrollment = async () => {
-    if (!isUploaded || !selectedFile) { // ✅ Use selectedFile instead of fileInputRef
-      alert('Please upload payment screenshot first');
+  // In handleConfirmEnrollment function in PaymentPage.jsx
+const handleConfirmEnrollment = async () => {
+  if (!isUploaded || !selectedFile) {
+    alert('Please upload payment screenshot first');
+    return;
+  }
+
+  setProcessing(true);
+
+  try {
+    // Get student email from cookie
+    const cookies = document.cookie.split(';');
+    let studentEmail = '';
+    for (let cookie of cookies) {
+      const [name, value] = cookie.trim().split('=');
+      if (name === 'student_email') {
+        studentEmail = value;
+        break;
+      }
+    }
+
+    if (!studentEmail) {
+      alert('Please complete the registration process first');
+      navigate('/personal-form');
       return;
     }
 
-    setProcessing(true);
-
-    try {
-      // Get student email from cookie
-      const cookies = document.cookie.split(';');
-      let studentEmail = '';
-      for (let cookie of cookies) {
-        const [name, value] = cookie.trim().split('=');
-        if (name === 'student_email') {
-          studentEmail = value;
-          break;
-        }
-      }
-
-      if (!studentEmail) {
-        alert('Please complete the registration process first');
-        navigate('/personal-form');
-        return;
-      }
-
-      // Get course track - you might want to store this from previous forms
-      const courseTrack = "Web Development"; // Update this dynamically
-
-      // Create FormData to send the image
-      const formData = new FormData();
-      formData.append('screenshot', selectedFile); // ✅ Use selectedFile
-      formData.append('student_email', studentEmail);
-      formData.append('course_track', courseTrack);
-      formData.append('amount', '499');
-
-      console.log('🟡 Sending payment data to backend...');
-      console.log('🟡 File:', selectedFile.name);
-      console.log('🟡 Email:', studentEmail);
-      console.log('🟡 Course:', courseTrack);
-
-      const response = await axios.post('https://edulearnbackend-ffiv.onrender.com/api/payment/process', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data'
-        }
-      });
-
-      console.log('🟢 Payment response:', response.data);
-
-      if (response.data.success) {
-        setShowSuccess(true);
-        // Auto navigate after 3 seconds
-        setTimeout(() => {
-          navigate('/dashboard');
-        }, 3000);
-      }
-    } catch (error) {
-      console.error('🔴 Error processing payment:', error);
-      if (error.response) {
-        alert(`Error: ${error.response.data.error || 'Server error'}`);
-      } else if (error.request) {
-        alert('Network error: Could not connect to server.');
-      } else {
-        alert('Error: ' + error.message);
-      }
-    } finally {
-      setProcessing(false);
+    // Get course from state (passed through navigation)
+    const course = location.state?.course;
+    if (!course) {
+      alert('Course information missing. Please go back and select a course again.');
+      navigate('/courses');
+      return;
     }
-  };
+
+    // Create FormData to send the image
+    const formData = new FormData();
+    formData.append('screenshot', selectedFile);
+    formData.append('student_email', studentEmail);
+    formData.append('course_track', course.title);  // Use course.title
+    formData.append('amount', course.price.toString());  // Use course.price
+
+    console.log('🟡 Sending payment data to backend...');
+    console.log('🟡 Course:', course.title);
+    console.log('🟡 Price:', course.price);
+    console.log('🟡 Email:', studentEmail);
+
+    const response = await axios.post('https://edulearnbackend-ffiv.onrender.com/api/payment/process', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    });
+
+    console.log('🟢 Payment response:', response.data);
+
+    if (response.data.success) {
+      setShowSuccess(true);
+      // Auto navigate after 3 seconds
+      setTimeout(() => {
+        navigate('/dashboard');
+      }, 3000);
+    }
+  } catch (error) {
+    console.error('🔴 Error processing payment:', error);
+    if (error.response) {
+      alert(`Error: ${error.response.data.error || 'Server error'}`);
+    } else if (error.request) {
+      alert('Network error: Could not connect to server.');
+    } else {
+      alert('Error: ' + error.message);
+    }
+  } finally {
+    setProcessing(false);
+  }
+};
 
   // Animation Components
   const UploadAnimation = () => (

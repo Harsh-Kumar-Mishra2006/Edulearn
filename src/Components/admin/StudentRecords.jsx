@@ -26,21 +26,42 @@ const StudentRecords = () => {
   }, []);
 
   const fetchStudentRecords = async () => {
-    try {
-      setLoading(true);
-      // This endpoint will need to be created in backend
-      const response = await axios.get('https://edulearnbackend-ffiv.onrender.com/api/teacher/student-records');
+  try {
+    setLoading(true);
+    // Fetch payments
+    const paymentsResponse = await axios.get('https://edulearnbackend-ffiv.onrender.com/api/teacher/student-records');
+    
+    if (paymentsResponse.data.success) {
+      // Fetch course details for each payment
+      const paymentsWithCourseDetails = await Promise.all(
+        paymentsResponse.data.payments.map(async (payment) => {
+          try {
+            // Get course details from backend
+            const courseResponse = await axios.get(
+              `https://edulearnbackend-ffiv.onrender.com/api/courses?title=${encodeURIComponent(payment.course_track)}`
+            );
+            
+            return {
+              ...payment,
+              course_details: courseResponse.data.success ? courseResponse.data.course : null,
+              actual_amount: courseResponse.data.success ? 
+                courseResponse.data.course.price : payment.amount
+            };
+          } catch (error) {
+            return payment; // Return payment without course details if error
+          }
+        })
+      );
       
-      if (response.data.success) {
-        setPayments(response.data.payments);
-      }
-    } catch (error) {
-      console.error('Error fetching student records:', error);
-      alert('Error loading student records');
-    } finally {
-      setLoading(false);
+      setPayments(paymentsWithCourseDetails);
     }
-  };
+  } catch (error) {
+    console.error('Error fetching student records:', error);
+    alert('Error loading student records');
+  } finally {
+    setLoading(false);
+  }
+};
 
   const filteredPayments = payments.filter(payment => {
     const matchesSearch = 
@@ -55,7 +76,7 @@ const StudentRecords = () => {
   const handleStatusUpdate = async (paymentId, newStatus) => {
     try {
       const response = await axios.put(`https://edulearnbackend-ffiv.onrender.com/api/teacher/payment/${paymentId}/status`, {
-        status: newStatus
+        status: newStatus,
       });
 
       if (response.data.success) {
@@ -204,7 +225,7 @@ const StudentRecords = () => {
                             <div className="flex items-center space-x-2 mt-1">
                               <BookOpen className="h-4 w-4 text-gray-400" />
                               <p className="text-sm text-gray-600">
-                                {payment.course_track}
+                                    Course: {payment.course_track}
                               </p>
                             </div>
                           </div>
@@ -213,7 +234,7 @@ const StudentRecords = () => {
                       
                       <td className="px-6 py-4">
                         <div className="text-sm text-gray-900">
-                          ₹{payment.amount}
+                           ₹{payment.actual_amount || payment.amount}
                         </div>
                         <div className="flex items-center space-x-1 mt-1">
                           <Calendar className="h-4 w-4 text-gray-400" />

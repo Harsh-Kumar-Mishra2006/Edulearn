@@ -1,6 +1,6 @@
 // components/forms/CourseForm.jsx
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate,useLocation } from 'react-router-dom';
 import { ArrowLeft, Code, Target, Clock, Zap, Book, Languages } from 'lucide-react';
 import axios from 'axios';
 
@@ -16,6 +16,10 @@ const CourseForm = () => {
   });
   const [loading, setLoading] = useState(false);
   const [studentEmail, setStudentEmail] = useState('');
+
+  const location = useLocation();
+const { course } = location.state || {};
+
 
   useEffect(() => {
     // Get email from cookie
@@ -50,7 +54,7 @@ const CourseForm = () => {
     try {
       console.log('🟡 Frontend - Sending course data:', { ...formData, email: studentEmail });
       
-      const response = await axios.post('https://edulearnbackend-ffiv.onrender.com/api/course/save', {
+      const response = await axios.post(' https://edulearnbackend-ffiv.onrender.com/api/course/save', {
         ...formData,
         email: studentEmail
       });
@@ -59,7 +63,13 @@ const CourseForm = () => {
       
       if (response.data.success) {
         alert('Course details saved successfully!');
-        navigate('/payment');
+       navigate('/payment', { 
+  state: { 
+    course: course,
+    email: studentEmail 
+  } 
+});
+
       }
     } catch (error) {
       console.error('🔴 Frontend - Error saving course details:', error);

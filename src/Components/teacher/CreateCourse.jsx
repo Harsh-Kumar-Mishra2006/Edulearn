@@ -40,18 +40,20 @@ const CreateCourse = () => {
   const checkAuthorization = async () => {
     try {
       const token = localStorage.getItem('token');
-      const userData = localStorage.getItem('userData');
-      
-      if (!token || !userData) {
-        setIsAuthorized(false);
-        setLoading(false);
-        return;
-      }
+    
+    // Get user from localStorage - check both possible keys
+    const userData = localStorage.getItem('user') || localStorage.getItem('userData');
+    
+    if (!token || !userData) {
+      setIsAuthorized(false);
+      setLoading(false);
+      return;
+    }
 
-      const parsedUser = JSON.parse(userData);
-      setUser(parsedUser);
+    const parsedUser = JSON.parse(userData);
+    setUser(parsedUser);
 
-      const response = await fetch('http://localhost:3000/api/auth/check-teacher', {
+      const response = await fetch('https://edulearnbackend-ffiv.onrender.com/api/auth/check-teacher', {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -74,12 +76,14 @@ const CreateCourse = () => {
       setLoading(false);
     }
   };
-
+  const [coursesLoading, setCoursesLoading] = useState(false);
+  const [materialsLoading, setMaterialsLoading] = useState(false);
   // Fetch teacher's courses
   const fetchTeacherCourses = async () => {
     try {
+      setCoursesLoading(true);
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:3000/api/course-materials/courses', {
+      const response = await fetch('https://edulearnbackend-ffiv.onrender.com/api/course-materials/courses', {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -91,9 +95,12 @@ const CreateCourse = () => {
         setCourses(data.data || []);
       }
     } catch (error) {
-      console.error('Error fetching courses:', error);
-    }
-  };
+    console.error('Error fetching courses:', error);
+    setCourses([]);
+  } finally {
+    setCoursesLoading(false);
+  }
+};
 
   useEffect(() => {
     checkAuthorization();
@@ -109,6 +116,29 @@ const CreateCourse = () => {
       }
     }
   };
+  // Create a reusable fetch function with error handling
+const authFetch = async (url, options = {}) => {
+  try {
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${API_BASE_URL}${url}`, {
+      ...options,
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        ...options.headers
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error(`API call failed for ${url}:`, error);
+    throw error;
+  }
+};
 
   const itemVariants = {
     hidden: { y: 20, opacity: 0 },
@@ -417,7 +447,7 @@ const UploadModal = ({ type, courses, onClose, onSuccess }) => {
 
       if (type === 'meeting') {
         // Meeting API call
-        endpoint = `http://localhost:3000/api/course-materials/courses/${uploadData.course_id}/meetings`;
+        endpoint = `https://edulearnbackend-ffiv.onrender.com/api/course-materials/courses/${uploadData.course_id}/meetings`;
         method = 'POST';
         body = JSON.stringify({
           title: uploadData.title,
@@ -442,8 +472,8 @@ const UploadModal = ({ type, courses, onClose, onSuccess }) => {
         }
 
         endpoint = type === 'video' 
-          ? `http://localhost:3000/api/course-materials/courses/${uploadData.course_id}/videos`
-          : `http://localhost:3000/api/course-materials/courses/${uploadData.course_id}/documents`;
+          ? `https://edulearnbackend-ffiv.onrender.com/api/course-materials/courses/${uploadData.course_id}/videos`
+          : `https://edulearnbackend-ffiv.onrender.com/api/course-materials/courses/${uploadData.course_id}/documents`;
         method = 'POST';
         body = formData;
       }
@@ -797,7 +827,7 @@ const AllMaterialsDisplay = ({ refreshTrigger, courses }) => {
       for (const course of courses) {
         try {
           // Fetch videos and documents
-          const materialsResponse = await fetch(`http://localhost:3000/api/course-materials/courses/${course._id}/materials`, {
+          const materialsResponse = await fetch(`https://edulearnbackend-ffiv.onrender.com/api/course-materials/courses/${course._id}/materials`, {
             headers: {
               'Authorization': `Bearer ${token}`,
               'Content-Type': 'application/json'
@@ -822,7 +852,7 @@ const AllMaterialsDisplay = ({ refreshTrigger, courses }) => {
           }
 
           // Fetch meetings
-          const meetingsResponse = await fetch(`http://localhost:3000/api/course-materials/courses/${course._id}/meetings`, {
+          const meetingsResponse = await fetch(`https://edulearnbackend-ffiv.onrender.com/api/course-materials/courses/${course._id}/meetings`, {
             headers: {
               'Authorization': `Bearer ${token}`,
               'Content-Type': 'application/json'
@@ -860,7 +890,7 @@ const AllMaterialsDisplay = ({ refreshTrigger, courses }) => {
   const updateVideo = async (courseId, videoId, updateData) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:3000/api/course-materials/courses/${courseId}/videos/${videoId}`, {
+      const response = await fetch(`https://edulearnbackend-ffiv.onrender.com/api/course-materials/courses/${courseId}/videos/${videoId}`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -882,7 +912,7 @@ const AllMaterialsDisplay = ({ refreshTrigger, courses }) => {
   const updateDocument = async (courseId, documentId, updateData) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:3000/api/course-materials/courses/${courseId}/documents/${documentId}`, {
+      const response = await fetch(`https://edulearnbackend-ffiv.onrender.com/api/course-materials/courses/${courseId}/documents/${documentId}`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -904,7 +934,7 @@ const AllMaterialsDisplay = ({ refreshTrigger, courses }) => {
   const updateMeeting = async (courseId, meetingId, updateData) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:3000/api/course-materials/courses/${courseId}/meetings/${meetingId}`, {
+      const response = await fetch(`https://edulearnbackend-ffiv.onrender.com/api/course-materials/courses/${courseId}/meetings/${meetingId}`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -929,9 +959,9 @@ const AllMaterialsDisplay = ({ refreshTrigger, courses }) => {
       let endpoint;
       
       if (materialType === 'meetings') {
-        endpoint = `http://localhost:3000/api/course-materials/courses/${courseId}/meetings/${materialId}`;
+        endpoint = `https://edulearnbackend-ffiv.onrender.com/api/course-materials/courses/${courseId}/meetings/${materialId}`;
       } else {
-        endpoint = `http://localhost:3000/api/course-materials/courses/${courseId}/materials/${materialType}/${materialId}`;
+        endpoint = `https://edulearnbackend-ffiv.onrender.com/api/course-materials/courses/${courseId}/materials/${materialType}/${materialId}`;
       }
 
       const response = await fetch(endpoint, {
@@ -996,7 +1026,7 @@ const AllMaterialsDisplay = ({ refreshTrigger, courses }) => {
   const downloadDocument = async (document) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:3000${document.file_url}`, {
+      const response = await fetch(`https://edulearnbackend-ffiv.onrender.com${document.file_url}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         }
@@ -1015,12 +1045,12 @@ const AllMaterialsDisplay = ({ refreshTrigger, courses }) => {
         document.body.removeChild(a);
       } else {
         // Fallback to direct download if authenticated download fails
-        window.open(`http://localhost:3000${document.file_url}`, '_blank');
+        window.open(`https://edulearnbackend-ffiv.onrender.com${document.file_url}`, '_blank');
       }
     } catch (error) {
       console.error('Download error:', error);
       // Final fallback
-      window.open(`http://localhost:3000${document.file_url}`, '_blank');
+      window.open(`https://edulearnbackend-ffiv.onrender.com${document.file_url}`, '_blank');
     }
   };
 
@@ -1166,7 +1196,7 @@ const AllMaterialsDisplay = ({ refreshTrigger, courses }) => {
                       <div className="relative bg-black/20 rounded-lg mb-3 aspect-video flex items-center justify-center">
                         {video.thumbnail_url ? (
                           <img
-                            src={`http://localhost:3000${video.thumbnail_url}`}
+                            src={`https://edulearnbackend-ffiv.onrender.com${video.thumbnail_url}`}
                             alt={video.title}
                             className="w-full h-full object-cover rounded-lg"
                           />
@@ -1174,7 +1204,7 @@ const AllMaterialsDisplay = ({ refreshTrigger, courses }) => {
                           <Video className="w-8 h-8 text-white/50" />
                         )}
                         <button
-                          onClick={() => window.open(`http://localhost:3000${video.video_url}`, '_blank')}
+                          onClick={() => window.open(`https://edulearnbackend-ffiv.onrender.com${video.video_url}`, '_blank')}
                           className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 hover:opacity-100 transition-opacity"
                         >
                           <PlayCircle className="w-12 h-12 text-white" />
@@ -1303,7 +1333,7 @@ const AllMaterialsDisplay = ({ refreshTrigger, courses }) => {
                         {/* Enhanced Action Buttons */}
                         <div className="flex gap-2 pt-2">
                           <button
-                            onClick={() => window.open(`http://localhost:3000${document.file_url}`, '_blank')}
+                            onClick={() => window.open(`https://edulearnbackend-ffiv.onrender.com${document.file_url}`, '_blank')}
                             className="flex-1 bg-blue-500/20 text-blue-400 py-2 px-3 rounded-lg text-sm font-medium hover:bg-blue-500/30 transition-colors flex items-center justify-center gap-2"
                           >
                             <Eye className="w-4 h-4" />
@@ -1794,7 +1824,7 @@ const CreateCourseForm = ({ onClose, onSuccess }) => {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:3000/api/course-materials/courses', {
+      const response = await fetch('https://edulearnbackend-ffiv.onrender.com/api/course-materials/courses', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

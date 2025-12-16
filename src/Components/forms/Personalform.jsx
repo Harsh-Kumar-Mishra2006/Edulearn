@@ -1,6 +1,6 @@
 // components/forms/PersonalForm.jsx
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate,useLocation } from 'react-router-dom';
 import { ArrowLeft, User, Mail, Phone, Calendar } from 'lucide-react';
 import axios from 'axios';
 
@@ -15,6 +15,8 @@ const PersonalForm = () => {
     dob: ''
   });
   const [loading, setLoading] = useState(false);
+  const location = useLocation();
+const { course } = location.state || {};
 
   const handleChange = (e) => {
     setFormData({
@@ -35,7 +37,12 @@ const PersonalForm = () => {
         document.cookie = `student_email=${formData.email}; path=/; max-age=86400`;
         
         alert('Personal information saved successfully!');
-        navigate('/background-form');
+       navigate('/background-form', { 
+  state: { 
+    course: course,
+    email: formData.email 
+  } 
+});;
       }
     } catch (error) {
       console.error('Error saving personal info:', error);

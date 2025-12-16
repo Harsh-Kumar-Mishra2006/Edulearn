@@ -1,6 +1,6 @@
 // components/forms/BackgroundForm.jsx
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate ,useLocation} from 'react-router-dom';
 import { ArrowLeft, GraduationCap, Briefcase, Book } from 'lucide-react';
 import axios from 'axios';
 
@@ -14,6 +14,8 @@ const BackgroundForm = () => {
   });
   const [loading, setLoading] = useState(false);
   const [studentEmail, setStudentEmail] = useState('');
+  const location = useLocation();
+const { course } = location.state || {};
 
   useEffect(() => {
     // Get email from cookie
@@ -71,13 +73,18 @@ const BackgroundForm = () => {
       
       console.log('🟡 Frontend - Mapped data for backend:', requestData);
       
-      const response = await axios.post('https://edulearnbackend-ffiv.onrender.com/api/background/save', requestData);
+      const response = await axios.post(' https://edulearnbackend-ffiv.onrender.com/api/background/save', requestData);
       
       console.log('🟢 Frontend - Success response:', response.data);
       
       if (response.data.success) {
         alert('Background information saved successfully!');
-        navigate('/course-form');
+        navigate('/course-form', { 
+  state: { 
+    course: course,
+    email: currentStudentEmail 
+  } 
+});
       }
     } catch (error) {
       console.error('🔴 Frontend - Error details:', error);

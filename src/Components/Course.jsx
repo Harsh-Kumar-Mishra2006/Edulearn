@@ -88,22 +88,27 @@ const CoursesPage = () => {
   });
 
   // Handle enroll button click
-  const handleEnrollClick = (course) => {
-    if (!isLoggedIn) {
-      // Redirect to login or show login modal
-      navigate('/login');
-      return;
-    }
-    
-    if (!isAuthorizedStudent()) {
-      // Show message for non-student users
-      alert(`Enrollment is only available for students. Your current role is ${user?.role}.`);
-      return;
-    }
-    
-    // Proceed with enrollment for authorized students
-    navigate('/personal-form', { state: { course } });
-  };
+  // In Courses.jsx, update the handleEnrollClick function:
+const handleEnrollClick = (course) => {
+  if (!isLoggedIn) {
+    navigate('/login');
+    return;
+  }
+  
+  if (!isAuthorizedStudent()) {
+    alert(`Enrollment is only available for students. Your current role is ${user?.role}.`);
+    return;
+  }
+  
+  // Pass the entire course object
+  navigate('/personal-form', { 
+    state: { 
+      course: course,
+      courseTrack: course.title,
+      coursePrice: course.price
+    } 
+  });
+};
 
   // Get button text based on user status
   const getButtonText = () => {

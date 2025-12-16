@@ -58,7 +58,7 @@ const Quiz = () => {
       const parsedUser = JSON.parse(userData);
       setUser(parsedUser);
 
-      const response = await fetch('http://localhost:3000/api/auth/check-teacher', {
+      const response = await fetch('https://edulearnbackend-ffiv.onrender.com/api/auth/check-teacher', {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -87,7 +87,7 @@ const Quiz = () => {
   const fetchTeacherCourses = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:3000/api/course-materials/courses', {
+      const response = await fetch('https://edulearnbackend-ffiv.onrender.com/api/course-materials/courses', {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -107,7 +107,7 @@ const Quiz = () => {
   const fetchTeacherQuizzes = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:3000/api/quiz/teacher/quizzes', {
+      const response = await fetch('https://edulearnbackend-ffiv.onrender.com/api/quiz/teacher/quizzes', {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -132,7 +132,7 @@ const Quiz = () => {
     try {
       setLoadingDetails(true);
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:3000/api/quiz/teacher/quizzes/${quizId}`, {
+      const response = await fetch(`https://edulearnbackend-ffiv.onrender.com/api/quiz/teacher/quizzes/${quizId}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -569,7 +569,7 @@ const CreateQuizForm = ({ courses, onClose, onSuccess }) => {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:3000/api/quiz/teacher/quizzes', {
+      const response = await fetch('https://edulearnbackend-ffiv.onrender.com/api/quiz/teacher/quizzes', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

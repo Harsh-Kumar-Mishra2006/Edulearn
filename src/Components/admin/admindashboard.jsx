@@ -26,6 +26,8 @@ const AdminDashboard = () => {
   const [copiedField, setCopiedField] = useState(null);
   const navigate = useNavigate();
 
+  const [message, setMessage] = useState({ type: '', text: '' });
+
   // Fetch teachers from backend
   const fetchTeachers = async () => {
     try {
@@ -111,28 +113,35 @@ const AdminDashboard = () => {
       return { success: false, message: 'Network error occurred' };
     }
   };
-
-  const handleDeleteTeacher = async (teacherId) => {
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`https://edulearnbackend-ffiv.onrender.com/api/admin/teachers/${teacherId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.ok) {
-        setTeachers(teachers.filter(teacher => teacher._id !== teacherId));
-        setDeleteTeacherId(null);
-      } else {
-        console.error('Failed to delete teacher');
+const handleDeleteTeacher = async (teacherId) => {
+  try {
+    const token = localStorage.getItem('token');
+    
+    // Remove from UI immediately
+    setTeachers(prev => prev.filter(teacher => teacher._id !== teacherId));
+    setDeleteTeacherId(null);
+    
+    // Send delete request in background
+    const response = await fetch(`https://edulearnbackend-ffiv.onrender.com/api/admin/teachers/${teacherId}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
       }
-    } catch (error) {
-      console.error('Error deleting teacher:', error);
+    });
+
+    if (!response.ok) {
+      // If delete fails, refresh list to restore teacher
+      await fetchTeachers();
+      console.error('Delete failed on backend');
     }
-  };
+    
+  } catch (error) {
+    console.error('Network error:', error);
+    // On error, refresh to get correct state
+    await fetchTeachers();
+  }
+};
 
   const handleCopyToClipboard = async (text, field) => {
     try {
@@ -264,7 +273,7 @@ const AdminDashboard = () => {
                     <div className="flex-1 min-w-0">
                       <h4 className="font-semibold text-lg truncate">{teacher.name}</h4>
                       <p className="text-white/80 text-sm truncate">{teacher.email}</p>
-                      <p className="text-yellow-400 text-sm font-medium truncate">{teacher.course_domain}</p>
+                      <p className="text-yellow-400 text-sm font-medium truncate">{teacher.course}</p>
                       <div className="flex items-center gap-2 mt-2">
                         <span className={`inline-block px-2 py-1 rounded-full text-xs font-semibold ${
                           teacher.status === 'active' 

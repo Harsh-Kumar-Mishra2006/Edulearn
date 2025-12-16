@@ -573,13 +573,13 @@ const MaterialCard = ({ material }) => {
 
   const handleView = () => {
     const url = isVideo ? material.video_url : material.file_url;
-    window.open(`https://edulearnbackend-ffiv.onrender.com${url}`, '_blank');
+    window.open(` http://localhost:3000${url}`, '_blank');
   };
 
   const handleDownload = () => {
     const url = isVideo ? material.video_url : material.file_url;
     const link = document.createElement('a');
-    link.href = `https://edulearnbackend-ffiv.onrender.com${url}`;
+    link.href = ` http://localhost:3000${url}`;
     link.download = material.title;
     link.click();
   };

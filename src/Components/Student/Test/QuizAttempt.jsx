@@ -19,7 +19,7 @@ const QuizAttempt = () => {
     const fetchAttempt = async () => {
       try {
         const token = localStorage.getItem('token');
-        const res = await fetch(`http://localhost:3000/api/quiz/student/attempt/${attemptId}`, {
+        const res = await fetch(`https://edulearnbackend-ffiv.onrender.com/api/quiz/student/attempt/${attemptId}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         const data = await res.json();
