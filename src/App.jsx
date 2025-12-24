@@ -20,6 +20,7 @@ import QuizAttempt from './Components/Student/Test/QuizAttempt';
 import StudentDashboard from './Components/Student/studentdashboard/StudentDashboard';
 import Analytics from './Components/admin/Analytics/Analytics';
 import AdminAnalytics from './Components/admin/Analytics/Analytics';
+import NewCourses from './sections/newCourses';
 
 // Add this admin check function
 const checkAdminAuth = () => {
@@ -61,6 +62,7 @@ const App = () => {
             <>
               <HeroSection />
               <CoursesPage />
+              <NewCourses/>
             </>
           } />
           <Route path="/dashboard" element={

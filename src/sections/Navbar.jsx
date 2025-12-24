@@ -17,6 +17,7 @@ import {
   BarChart3
 } from 'lucide-react';
 import Signup from '../Components/auth/signup';
+import { useNavigate } from 'react-router-dom'; // Add this import
 
 const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -26,6 +27,7 @@ const Navbar = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+   const navigate = useNavigate(); // Initialize navigate hook
 
   // Role-based navigation items
   const getNavigationItems = () => {
@@ -140,23 +142,46 @@ const Navbar = () => {
     };
   }, []);
 
+   // Enhanced checkAuthStatus with redirect logic
   const checkAuthStatus = async () => {
     try {
       const token = localStorage.getItem('token');
       const loggedIn = localStorage.getItem('isLoggedIn') === 'true';
       const userData = localStorage.getItem('userData');
+      const currentPath = window.location.pathname;
+      
+      // Define public routes that don't require authentication
+      const publicRoutes = ['/', '/dashboard', '/courses', '/login', '/signup'];
+      
+      // Define role-based routes
+      const studentRoutes = ['/my-learning', '/test', '/student-record'];
+      const teacherRoutes = ['/my-courses', '/create-course', '/quiz-creator', '/analytics'];
+      const adminRoutes = ['/users', '/analytics', '/student-records', '/admin-settings'];
       
       if (token && loggedIn && userData) {
         const parsedUser = JSON.parse(userData);
         setUser(parsedUser);
         setIsLoggedIn(true);
+        
+        // Check if user is trying to access routes not allowed for their role
+        if (parsedUser.role === 'student' && teacherRoutes.concat(adminRoutes).includes(currentPath)) {
+          navigate('/dashboard');
+        } else if (parsedUser.role === 'teacher' && adminRoutes.includes(currentPath)) {
+          navigate('/dashboard');
+        }
       } else {
+        // User is not logged in, check if they're trying to access protected routes
+        const allProtectedRoutes = studentRoutes.concat(teacherRoutes).concat(adminRoutes);
+        if (allProtectedRoutes.includes(currentPath)) {
+          navigate('/dashboard');
+        }
         setIsLoggedIn(false);
         setUser(null);
       }
     } catch (error) {
       console.error('Error checking auth status:', error);
       clearAuthData();
+      navigate('/dashboard');
     } finally {
       setLoading(false);
     }
@@ -212,15 +237,51 @@ const Navbar = () => {
       if (response.ok) {
         clearAuthData();
         setIsProfileOpen(false);
+         // Redirect to dashboard after logout
+        navigate('/dashboard');
+        
         window.dispatchEvent(new Event('authChange'));
       }
     } catch (err) {
       console.error('Logout error:', err);
       clearAuthData();
       setIsProfileOpen(false);
+       // Redirect to dashboard after logout
+      navigate('/dashboard');
+        
       window.dispatchEvent(new Event('authChange'));
     }
   };
+
+   const handleMobileLinkClick = (href) => {
+    // Check if user is logged in and has access to this route
+    if (!isLoggedIn) {
+      const studentRoutes = ['/my-learning', '/test', '/student-record'];
+      const teacherRoutes = ['/my-courses', '/create-course', '/quiz-creator', '/analytics'];
+      const adminRoutes = ['/users', '/analytics', '/student-records', '/admin-settings'];
+      
+      const allProtectedRoutes = studentRoutes.concat(teacherRoutes).concat(adminRoutes);
+      
+      if (allProtectedRoutes.includes(href)) {
+        alert('Please login to access this page');
+        setIsMenuOpen(false);
+        setIsLoginOpen(true);
+        return false;
+      }
+    }
+    setIsMenuOpen(false);
+    return true;
+  };
+
+    useEffect(() => {
+    checkAuthStatus();
+    
+    window.addEventListener('authChange', checkAuthStatus);
+    
+    return () => {
+      window.removeEventListener('authChange', checkAuthStatus);
+    };
+  }, []);
 
   if (loading) {
     return (
@@ -395,6 +456,11 @@ const Navbar = () => {
                   <a
                     key={item.name}
                     href={item.href}
+                     onClick={(e) => {
+              if (!handleMobileLinkClick(item.href)) {
+                e.preventDefault();
+              }
+            }}
                     className={`block px-3 py-2 rounded-lg text-base font-medium ${
                       item.current
                         ? 'bg-indigo-600 text-white'
