@@ -16,7 +16,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import TeacherCourseService from '../services/TeacherCourseService'; // Adjust path
+import TeacherCourseService from '../services/teacherCourseService'; // Adjust path
 
 const NewCourses = () => {
   const [courses, setCourses] = useState([]);
