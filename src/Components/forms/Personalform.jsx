@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { useNavigate,useLocation } from 'react-router-dom';
 import { ArrowLeft, User, Mail, Phone, Calendar } from 'lucide-react';
 import axios from 'axios';
-
+import CourseSummary from '../Student/course/courseSummary';
 const PersonalForm = () => {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
@@ -55,7 +55,7 @@ const { course } = location.state || {};
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-8">
       <div className="max-w-2xl mx-auto px-4">
-        
+        <CourseSummary course={course} />
         {/* Header */}
         <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">
           <div className="flex items-center justify-between mb-6">

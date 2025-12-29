@@ -15,7 +15,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 
-const AddCourse = ({ onClose, onSubmit }) => {
+const AddCourseForm = ({ onClose, onSubmit }) => {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -49,8 +49,8 @@ const AddCourse = ({ onClose, onSubmit }) => {
     'Productivity',
     'Business',
     'Technology',
-    'Data Science',
-    'Personal Development'
+    'Personal Development',
+    'Others'
   ];
 
   const levels = [
@@ -62,13 +62,23 @@ const AddCourse = ({ onClose, onSubmit }) => {
     'Beginner to Intermediate'
   ];
 
-  const handleChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: type === 'checkbox' ? checked : value
-    }));
-  };
+  // forms/AddCourse.jsx - Fix handleChange:
+const handleChange = (e) => {
+  const { name, value, type, checked } = e.target;
+  
+  if (name === 'price') {
+    const numValue = parseFloat(value);
+    if (numValue < 0) {
+      setError('Price cannot be negative');
+      return;
+    }
+  }
+  
+  setFormData(prev => ({
+    ...prev,
+    [name]: type === 'checkbox' ? checked : value
+  }));
+};
 
   const handleImageChange = (e) => {
     const file = e.target.files[0];
@@ -134,49 +144,123 @@ const AddCourse = ({ onClose, onSubmit }) => {
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError('');
-    
-    // Validation
-    if (!formData.title.trim()) {
-      setError('Course title is required');
-      return;
-    }
-    
-    if (!formData.description.trim()) {
-      setError('Course description is required');
-      return;
-    }
-    
-    if (!formData.price && !formData.isFree) {
-      setError('Course price is required for paid courses');
-      return;
-    }
-    
-    if (!image) {
-      setError('Course image is required');
-      return;
-    }
+  e.preventDefault();
+  setError('');
+  
+  // Validation
+  if (!formData.title.trim()) {
+    setError('Course title is required');
+    return;
+  }
+  
+  if (!formData.description.trim()) {
+    setError('Course description is required');
+    return;
+  }
+  
+  // 🔴 FIX: Proper validation for price
+  if (!formData.isFree && (!formData.price || formData.price === '')) {
+    setError('Course price is required for paid courses');
+    return;
+  }
+  
+  if (!image) {
+    setError('Course image is required');
+    return;
+  }
 
-    setLoading(true);
+  // Prepare form data
+  const formDataToSend = new FormData();
+  formDataToSend.append('title', formData.title);
+  formDataToSend.append('description', formData.description);
+  formDataToSend.append('duration', formData.duration);
+  formDataToSend.append('level', formData.level);
+  formDataToSend.append('category', formData.category);
+  formDataToSend.append('popular', formData.popular.toString());
+  formDataToSend.append('isFree', formData.isFree.toString());
+  formDataToSend.append('isFeatured', formData.isFeatured.toString());
+  
+  // Append price only if not free
+  if (!formData.isFree) {
+    formDataToSend.append('price', formData.price);
+  }
+  
+  if (formData.discountPrice) {
+    formDataToSend.append('discountPrice', formData.discountPrice);
+  }
+  
+  // Append arrays as comma-separated strings
+  if (formData.features.length > 0) {
+    formDataToSend.append('features', formData.features.join(','));
+  }
+  
+  if (formData.prerequisites.length > 0) {
+    formDataToSend.append('prerequisites', formData.prerequisites.join(','));
+  }
+  
+  if (formData.learningOutcomes.length > 0) {
+    formDataToSend.append('learningOutcomes', formData.learningOutcomes.join(','));
+  }
+  
+  // Append meta fields
+  if (formData.metaTitle) {
+    formDataToSend.append('metaTitle', formData.metaTitle);
+  }
+  
+  if (formData.metaDescription) {
+    formDataToSend.append('metaDescription', formData.metaDescription);
+  }
+  
+  // Append image
+  if (image) {
+    formDataToSend.append('image', image);
+  }
 
-    try {
-      const result = await onSubmit({
-        ...formData,
-        image,
-        price: formData.isFree ? 0 : parseFloat(formData.price),
-        features: formData.features.join(',')
+  setLoading(true);
+
+  try {
+    // Make API call with FormData
+    const response = await fetch('/api/teacher/courses', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
+      },
+      body: formDataToSend
+    });
+
+    const result = await response.json();
+    
+    if (!result.success) {
+      setError(result.error || 'Failed to create course');
+    } else {
+      // Success - reset form and close
+      setFormData({
+        title: '',
+        description: '',
+        duration: '',
+        level: 'Beginner',
+        price: '',
+        category: 'Development',
+        features: [],
+        popular: false,
+        isFree: false,
+        discountPrice: '',
+        prerequisites: [],
+        learningOutcomes: [],
+        metaTitle: '',
+        metaDescription: '',
+        isFeatured: false
       });
-      
-      if (!result.success) {
-        setError(result.message);
-      }
-    } catch (err) {
-      setError('Failed to create course. Please try again.');
-    } finally {
-      setLoading(false);
+      setImage(null);
+      setImagePreview(null);
+      onClose(); // Close the modal on success
     }
-  };
+  } catch (err) {
+    setError('Failed to create course. Please try again.');
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <motion.div
@@ -310,7 +394,7 @@ const AddCourse = ({ onClose, onSubmit }) => {
               {/* Pricing */}
               <div className="bg-gray-50 rounded-xl p-4">
                 <h3 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
-                  <DollarSign className="w-5 h-5" />
+                  <span >₹</span>
                   Pricing
                 </h3>
                 
@@ -329,10 +413,10 @@ const AddCourse = ({ onClose, onSubmit }) => {
                   {!formData.isFree && (
                     <div>
                       <label className="block text-gray-700 text-sm font-medium mb-2">
-                        Price (USD) *
+                        Price (INR) *
                       </label>
                       <div className="relative">
-                        <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-600">$</span>
+                        <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-600">₹</span>
                         <input
                           type="number"
                           name="price"
@@ -341,7 +425,7 @@ const AddCourse = ({ onClose, onSubmit }) => {
                           min="0"
                           step="0.01"
                           className="w-full pl-8 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                          placeholder="29.99"
+                          placeholder="₹500"
                           required={!formData.isFree}
                         />
                       </div>
@@ -353,7 +437,7 @@ const AddCourse = ({ onClose, onSubmit }) => {
                       Discount Price (Optional)
                     </label>
                     <div className="relative">
-                      <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-600">$</span>
+                      <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-600">₹</span>
                       <input
                         type="number"
                         name="discountPrice"
@@ -362,7 +446,7 @@ const AddCourse = ({ onClose, onSubmit }) => {
                         min="0"
                         step="0.01"
                         className="w-full pl-8 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                        placeholder="19.99"
+                        placeholder="₹400"
                       />
                     </div>
                   </div>
@@ -658,4 +742,4 @@ const AddCourse = ({ onClose, onSubmit }) => {
   );
 };
 
-export default AddCourse;
+export default AddCourseForm

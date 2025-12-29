@@ -15,6 +15,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import axios from 'axios';
+import CourseSummary from '../Student/course/courseSummary';
 
 const PaymentPage = () => {
   const navigate = useNavigate();
@@ -207,6 +208,7 @@ const handleConfirmEnrollment = async () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-indigo-100 py-8">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+        <CourseSummary course={course} />
         
         {/* Header */}
         <div className="bg-white rounded-2xl shadow-lg p-6 mb-8">

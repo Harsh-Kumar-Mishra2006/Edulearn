@@ -23,6 +23,7 @@ import {
   Users
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import AddNewCourse from './newCourse/addNewCourse';
 
 const CreateCourse = () => {
   const [isAuthorized, setIsAuthorized] = useState(false);
@@ -33,6 +34,7 @@ const CreateCourse = () => {
   const [showUploadModal, setShowUploadModal] = useState(null); // 'video', 'document', or 'meeting'
   const [selectedCourse, setSelectedCourse] = useState(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [showAddCourseForm, setShowAddCourseForm] = useState(false);
 
   const navigate = useNavigate();
 
@@ -230,6 +232,38 @@ const authFetch = async (url, options = {}) => {
               <p className="text-white/80 text-sm">Create and manage courses</p>
             </motion.div>
 
+{/* Add Course to Catalog Card */}
+<motion.div 
+  className="bg-gradient-to-br from-green-600/20 to-emerald-600/20 backdrop-blur-md border border-emerald-500/30 rounded-2xl p-6 text-center cursor-pointer hover:from-green-600/30 hover:to-emerald-600/30 transition-all duration-300 group"
+  whileHover={{ scale: 1.05, y: -5 }}
+  whileTap={{ scale: 0.95 }}
+  onClick={() => setShowAddCourseForm(true)}
+>
+  <div className="relative">
+    <BookOpen className="w-12 h-12 mx-auto mb-3 text-emerald-400 group-hover:text-emerald-300 transition-colors" />
+    <div className="absolute -top-1 -right-1 bg-emerald-500 rounded-full p-1">
+      <Plus className="w-4 h-4 text-white" />
+    </div>
+  </div>
+  <h3 className="text-xl font-semibold mb-2 text-white">Add to Catalog</h3>
+  <p className="text-white/80 text-sm">Create new course for all students</p>
+  <span className="inline-block mt-2 px-2 py-1 bg-emerald-500/20 text-emerald-300 text-xs rounded-full border border-emerald-500/30">
+    New Feature
+  </span>
+</motion.div>
+
+<AnimatePresence>
+  {showAddCourseForm && (
+    <AddNewCourse
+      onClose={() => setShowAddCourseForm(false)}
+      onSuccess={() => {
+        setShowAddCourseForm(false);
+        alert('Course added to catalog successfully! It will appear in the courses section.');
+      }}
+    />
+  )}
+</AnimatePresence>
+
             {/* Upload Videos Card */}
             <motion.div 
               className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-6 text-center cursor-pointer hover:bg-white/15 transition-all duration-300"
@@ -247,6 +281,8 @@ const authFetch = async (url, options = {}) => {
               <h3 className="text-xl font-semibold mb-2">Upload Videos</h3>
               <p className="text-white/80 text-sm">Upload video lectures</p>
             </motion.div>
+
+            
 
             {/* Upload Documents Card */}
             <motion.div 

@@ -17,14 +17,11 @@ import {
   PlusCircle
 } from 'lucide-react';
 import AddTeacher from '../forms/AddTeacher';
-import AddCourse from '../forms/adminAddCourseForm'; // New import
 import { useNavigate } from 'react-router-dom';
 
 const AdminDashboard = () => {
   const [teachers, setTeachers] = useState([]);
-  const [courses, setCourses] = useState([]); // New state for courses
   const [showAddTeacherForm, setShowAddTeacherForm] = useState(false);
-  const [showAddCourseForm, setShowAddCourseForm] = useState(false); // New state for course form
   const [deleteTeacherId, setDeleteTeacherId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [credentials, setCredentials] = useState(null);
@@ -56,34 +53,9 @@ const AdminDashboard = () => {
   };
 
   // Fetch courses from backend
-  const fetchCourses = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('https://edulearnbackend-ffiv.onrender.com/api/admin/courses', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setCourses(data.data || []);
-      } else {
-        console.error('Failed to fetch courses');
-        setCourses([]);
-      }
-    } catch (error) {
-      console.error('Error fetching courses:', error);
-      setCourses([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
+ 
   useEffect(() => {
     fetchTeachers();
-    fetchCourses();
   }, []);
 
   const containerVariants = {
@@ -141,61 +113,6 @@ const AdminDashboard = () => {
     }
   };
 
-  // New function to handle adding course
-  const handleAddCourse = async (courseData) => {
-    try {
-      const token = localStorage.getItem('token');
-      
-      // Create FormData for file upload
-      const formData = new FormData();
-      
-      // Append all fields to formData
-      Object.keys(courseData).forEach(key => {
-        if (key === 'features' && Array.isArray(courseData[key])) {
-          formData.append(key, courseData[key].join(','));
-        } else if (key === 'image') {
-          // Image will be handled separately
-        } else {
-          formData.append(key, courseData[key]);
-        }
-      });
-      
-      // Append image file
-      if (courseData.image && courseData.image instanceof File) {
-        formData.append('image', courseData.image);
-      }
-
-      const response = await fetch('https://edulearnbackend-ffiv.onrender.com/api/admin/courses', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-        body: formData
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        await fetchCourses(); // Refresh courses list
-        setShowAddCourseForm(false);
-        
-        // Show success message
-        setCredentials({
-          type: 'course',
-          message: 'Course created successfully!',
-          courseTitle: courseData.title,
-          courseId: result.data?._id
-        });
-        
-        return { success: true, message: 'Course created successfully' };
-      } else {
-        const error = await response.json();
-        return { success: false, message: error.error || 'Failed to create course' };
-      }
-    } catch (error) {
-      console.error('Add course error:', error);
-      return { success: false, message: 'Network error occurred' };
-    }
-  };
 
   const handleDeleteTeacher = async (teacherId) => {
     try {
@@ -246,10 +163,6 @@ const AdminDashboard = () => {
     navigate('/certificate-management');
   };
 
-  // New function for course management
-  const handleCourseManagement = () => {
-    navigate('/course-management');
-  };
 
   if (loading) {
     return (
@@ -314,17 +227,7 @@ const AdminDashboard = () => {
               <p className="text-white/80 text-lg">Add new teaching staff to the platform</p>
             </motion.div>
 
-            {/* Add New Course Card */}
-            <motion.div 
-              className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-8 text-center cursor-pointer hover:bg-white/15 transition-all duration-300"
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => setShowAddCourseForm(true)}
-            >
-              <PlusCircle className="w-16 h-16 mx-auto mb-4 text-blue-400" />
-              <h3 className="text-2xl font-semibold mb-2">Add New Course</h3>
-              <p className="text-white/80 text-lg">Create and publish new courses</p>
-            </motion.div>
+           
 
             {/* Certificate Management Card */}
             <motion.div 
@@ -354,116 +257,9 @@ const AdminDashboard = () => {
                 <Users className="w-12 h-12 text-yellow-400" />
               </div>
             </div>
-
-            {/* Courses Count */}
-            <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-white/70 text-sm">Total Courses</p>
-                  <p className="text-3xl font-bold mt-2">{courses.length}</p>
-                </div>
-                <BookOpen className="w-12 h-12 text-blue-400" />
-              </div>
-            </div>
-
-            {/* Active Courses */}
-            <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-white/70 text-sm">Published Courses</p>
-                  <p className="text-3xl font-bold mt-2">
-                    {courses.filter(course => course.status === 'published').length}
-                  </p>
-                </div>
-                <BookText className="w-12 h-12 text-green-400" />
-              </div>
-            </div>
-
-            {/* Popular Courses */}
-            <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-white/70 text-sm">Popular Courses</p>
-                  <p className="text-3xl font-bold mt-2">
-                    {courses.filter(course => course.popular).length}
-                  </p>
-                </div>
-                <Award className="w-12 h-12 text-purple-400" />
-              </div>
-            </div>
           </motion.div>
 
-          {/* Recent Courses Section */}
-          <motion.div 
-            variants={itemVariants}
-            className="bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-8 mt-12"
-          >
-            <div className="flex justify-between items-center mb-8">
-              <h3 className="text-2xl font-semibold">Recent Courses</h3>
-              <button 
-                onClick={handleCourseManagement}
-                className="bg-white/10 hover:bg-white/20 border border-white/20 px-4 py-2 rounded-lg text-sm transition-colors"
-              >
-                View All Courses
-              </button>
-            </div>
-
-            {courses.length === 0 ? (
-              <div className="text-center py-12">
-                <BookOpen className="w-16 h-16 mx-auto mb-4 text-white/50" />
-                <p className="text-white/70 text-lg">No courses added yet</p>
-                <p className="text-white/50">Click "Add New Course" to create your first course</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {courses.slice(0, 6).map((course, index) => (
-                  <motion.div
-                    key={course._id}
-                    className="bg-white/10 border border-white/20 rounded-xl p-6 hover:bg-white/15 transition-all duration-300"
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                    whileHover={{ y: -5 }}
-                  >
-                    <div className="flex items-start justify-between mb-4">
-                      <div>
-                        <h4 className="font-semibold text-lg truncate">{course.title}</h4>
-                        <p className="text-white/70 text-sm mt-1">{course.category}</p>
-                      </div>
-                      <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                        course.status === 'published' 
-                          ? 'bg-green-500/20 text-green-400 border border-green-400/50' 
-                          : course.status === 'draft'
-                          ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-400/50'
-                          : 'bg-gray-500/20 text-gray-400 border border-gray-400/50'
-                      }`}>
-                        {course.status}
-                      </span>
-                    </div>
-                    
-                    <p className="text-white/80 text-sm mb-4 line-clamp-2">{course.description}</p>
-                    
-                    <div className="flex items-center justify-between mt-4">
-                      <div>
-                        <span className="text-yellow-400 font-bold">${course.price}</span>
-                        <span className="text-white/60 text-sm ml-2">{course.duration}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {course.popular && (
-                          <span className="bg-yellow-500/20 text-yellow-400 text-xs px-2 py-1 rounded">
-                            Popular
-                          </span>
-                        )}
-                        <span className="text-white/60 text-sm">
-                          ★ {course.rating || 0}
-                        </span>
-                      </div>
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
-            )}
-          </motion.div>
+         
 
           {/* Teachers List Section */}
           <motion.div 
@@ -546,15 +342,6 @@ const AdminDashboard = () => {
       </AnimatePresence>
 
       {/* Add Course Form Modal */}
-      <AnimatePresence>
-        {showAddCourseForm && (
-          <AddCourse 
-            onClose={() => setShowAddCourseForm(false)}
-            onSubmit={handleAddCourse}
-          />
-        )}
-      </AnimatePresence>
-
       {/* Credentials Info Box */}
       <AnimatePresence>
         {credentials && (
@@ -588,88 +375,7 @@ const AdminDashboard = () => {
   );
 };
 
-// Course Success Info Box Component
-const CourseSuccessInfoBox = ({ credentials, onClose }) => (
-  <motion.div
-    className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50"
-    initial={{ opacity: 0 }}
-    animate={{ opacity: 1 }}
-    exit={{ opacity: 0 }}
-    onClick={onClose}
-  >
-    <motion.div
-      className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl p-8 max-w-md w-full relative"
-      initial={{ scale: 0.8, opacity: 0 }}
-      animate={{ scale: 1, opacity: 1 }}
-      exit={{ scale: 0.8, opacity: 0 }}
-      onClick={(e) => e.stopPropagation()}
-    >
-      {/* Close Button */}
-      <button
-        onClick={onClose}
-        className="absolute top-4 right-4 text-white/80 hover:text-white transition-colors"
-      >
-        <X className="w-6 h-6" />
-      </button>
 
-      {/* Success Icon */}
-      <div className="text-center mb-6">
-        <CheckCircle className="w-16 h-16 text-white mx-auto mb-4" />
-        <h3 className="text-2xl font-bold text-white mb-2">Course Created Successfully!</h3>
-        <p className="text-white/90">
-          <span className="font-semibold">{credentials.courseTitle}</span> has been added to the platform
-        </p>
-      </div>
-
-      {/* Course Info Box */}
-      <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-xl p-6 mb-6">
-        <div className="space-y-4">
-          <div>
-            <label className="block text-white/80 text-sm font-medium mb-1">Course Title</label>
-            <p className="text-white font-semibold">{credentials.courseTitle}</p>
-          </div>
-          
-          <div>
-            <label className="block text-white/80 text-sm font-medium mb-1">Course ID</label>
-            <div className="flex items-center gap-2">
-              <code className="flex-1 bg-white/20 border border-white/30 rounded-lg px-3 py-2 text-white font-mono text-sm truncate">
-                {credentials.courseId}
-              </code>
-              <button
-                onClick={() => navigator.clipboard.writeText(credentials.courseId)}
-                className="bg-white/20 hover:bg-white/30 border border-white/30 rounded-lg p-2 transition-colors"
-              >
-                <Copy className="w-4 h-4 text-white" />
-              </button>
-            </div>
-          </div>
-          
-          <div>
-            <label className="block text-white/80 text-sm font-medium mb-1">Status</label>
-            <span className="inline-block bg-green-500/20 text-green-400 px-3 py-1 rounded-full text-sm">
-              Ready for Publishing
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* Next Steps */}
-      <div className="bg-yellow-500/20 border border-yellow-400/50 rounded-lg p-4 mb-6">
-        <p className="text-yellow-200 text-sm">
-          <strong>Next Steps:</strong> You can now add course content, videos, and materials to this course.
-        </p>
-      </div>
-
-      {/* Action Button */}
-      <button
-        onClick={onClose}
-        className="w-full bg-white text-blue-600 py-3 rounded-xl font-semibold hover:bg-gray-100 transform hover:-translate-y-0.5 transition-all duration-200"
-      >
-        Continue to Dashboard
-      </button>
-    </motion.div>
-  </motion.div>
-);
 
 // Credentials Info Box Component (keep existing)
 const CredentialsInfoBox = ({ credentials, onClose, onCopy, copiedField }) => (

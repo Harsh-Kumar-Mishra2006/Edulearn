@@ -12,9 +12,11 @@ import {
   Lock,
   AlertCircle,
   RefreshCw,
-  BookText
+  BookText,
+  Sparkles
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import TeacherCourseService from '../services/TeacherCourseService'; // Adjust path
 
 const NewCourses = () => {
   const [courses, setCourses] = useState([]);
@@ -26,63 +28,25 @@ const NewCourses = () => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [categories, setCategories] = useState(['All', 'Development', 'Design', 'Marketing', 'Productivity']);
+  const [categories, setCategories] = useState(['All']);
 
   const navigate = useNavigate();
 
-  // Fetch courses from backend API
+  // Fetch courses from service
   const fetchCourses = async () => {
     try {
       setLoading(true);
       setError(null);
       
-      // Fetch from admin courses API
-      const token = localStorage.getItem('token');
-      const response = await fetch('https://edulearnbackend-ffiv.onrender.com/api/admin/courses', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        
-        if (result.success) {
-          // Transform API data to match frontend structure
-          const transformedCourses = result.data.map(course => ({
-            id: course._id,
-            title: course.title,
-            description: course.description,
-            image: course.image ? `/uploads/courses/images/${course.image}` : 'default-course.jpg',
-            duration: course.duration,
-            level: course.level,
-            price: course.price,
-            rating: course.rating || 0,
-            students: 0, // Initialize with 0 students
-            category: course.category,
-            features: course.features || [],
-            popular: course.popular || false,
-            isFeatured: course.isFeatured || false,
-            status: course.status,
-            createdBy: course.createdByName || 'Admin',
-            createdAt: course.createdAt,
-            // For enrollment tracking
-            enrolledStudents: course.studentsEnrolled || 0
-          }));
-          
-          setCourses(transformedCourses);
-          setFilteredCourses(transformedCourses);
-          
-          // Extract unique categories
-          const uniqueCategories = ['All', ...new Set(transformedCourses.map(c => c.category).filter(Boolean))];
-          setCategories(uniqueCategories);
-        } else {
-          setError(result.error || 'Failed to load courses');
-        }
-      } else {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+      const allCourses = await TeacherCourseService.fetchAllCourses();
+      
+      setCourses(allCourses);
+      setFilteredCourses(allCourses);
+      
+      // Extract unique categories
+      const uniqueCategories = ['All', ...new Set(allCourses.map(c => c.category).filter(Boolean))];
+      setCategories(uniqueCategories);
+      
     } catch (err) {
       console.error('Error fetching courses:', err);
       setError('Failed to load courses. Please try again later.');
@@ -105,7 +69,7 @@ const NewCourses = () => {
     };
   }, []);
 
-  // Filter and sort courses when dependencies change
+  // Filter and sort courses
   useEffect(() => {
     let result = [...courses];
     
@@ -128,7 +92,6 @@ const NewCourses = () => {
     result.sort((a, b) => {
       switch (sortBy) {
         case 'popular':
-          // Sort by popularity flag, then by enrolled students
           if (a.popular && !b.popular) return -1;
           if (!a.popular && b.popular) return 1;
           return b.enrolledStudents - a.enrolledStudents;
@@ -148,6 +111,11 @@ const NewCourses = () => {
         case 'featured':
           if (a.isFeatured && !b.isFeatured) return -1;
           if (!a.isFeatured && b.isFeatured) return 1;
+          return 0;
+        
+        case 'teacher':
+          if (a.createdByRole === 'teacher' && b.createdByRole !== 'teacher') return -1;
+          if (a.createdByRole !== 'teacher' && b.createdByRole === 'teacher') return 1;
           return 0;
         
         default:
@@ -179,12 +147,10 @@ const NewCourses = () => {
     }
   };
 
-  // Check if user is authorized student
   const isAuthorizedStudent = () => {
     return isLoggedIn && user?.role === 'student';
   };
 
-  // Handle enroll button click
   const handleEnrollClick = (course) => {
     if (!isLoggedIn) {
       navigate('/login');
@@ -196,26 +162,23 @@ const NewCourses = () => {
       return;
     }
     
-    // Pass the entire course object to personal form
     navigate('/personal-form', { 
       state: { 
         course: course,
         courseTrack: course.title,
         coursePrice: course.price,
         courseId: course.id,
-        courseType: 'admin-created'
+        courseType: 'created'
       } 
     });
   };
 
-  // Get button text based on user status
   const getButtonText = () => {
     if (!isLoggedIn) return 'Login to Enroll';
     if (user?.role !== 'student') return 'Students Only';
     return 'Enroll Now';
   };
 
-  // Get button styles based on user status
   const getButtonStyles = () => {
     const baseStyles = "w-full py-3 rounded-xl font-semibold transition-all duration-300 transform shadow-lg ";
     
@@ -226,7 +189,6 @@ const NewCourses = () => {
     }
   };
 
-  // Format date
   const formatDate = (dateString) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', {
@@ -236,7 +198,6 @@ const NewCourses = () => {
     });
   };
 
-  // Handle retry
   const handleRetry = () => {
     fetchCourses();
   };
@@ -273,6 +234,12 @@ const NewCourses = () => {
     );
   }
 
+  // Calculate stats
+  const totalCourses = courses.length;
+  const publishedCourses = courses.filter(c => c.status === 'published').length;
+  const teacherCourses = courses.filter(c => c.createdByRole === 'teacher').length;
+  const popularCourses = courses.filter(c => c.popular).length;
+
   return (
     <div className="min-h-screen bg-white py-12">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -280,27 +247,32 @@ const NewCourses = () => {
         {/* Header Section */}
         <div className="text-center mb-12">
           <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
-            Our <span className="bg-clip-text text-transparent bg-gradient-to-r from-cyan-500 to-blue-600">Latest Courses</span>
+            Our <span className="bg-clip-text text-transparent bg-gradient-to-r from-cyan-500 to-blue-600">Course Catalog</span>
           </h1>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-            Discover professionally curated courses added by our administrators. Learn from the best resources available.
+            Explore courses created by administrators and teachers. Learn from the best resources available.
           </p>
           
           {/* Stats */}
           <div className="mt-6 flex flex-wrap justify-center gap-4">
             <div className="px-4 py-2 bg-blue-50 rounded-full">
               <span className="text-sm text-blue-700">
-                <strong>{courses.length}</strong> Total Courses
+                <strong>{totalCourses}</strong> Total Courses
               </span>
             </div>
             <div className="px-4 py-2 bg-green-50 rounded-full">
               <span className="text-sm text-green-700">
-                <strong>{courses.filter(c => c.status === 'published').length}</strong> Published
+                <strong>{publishedCourses}</strong> Published
+              </span>
+            </div>
+            <div className="px-4 py-2 bg-emerald-50 rounded-full">
+              <span className="text-sm text-emerald-700">
+                <strong>{teacherCourses}</strong> Teacher Created
               </span>
             </div>
             <div className="px-4 py-2 bg-purple-50 rounded-full">
               <span className="text-sm text-purple-700">
-                <strong>{courses.filter(c => c.popular).length}</strong> Popular
+                <strong>{popularCourses}</strong> Popular
               </span>
             </div>
           </div>
@@ -361,6 +333,7 @@ const NewCourses = () => {
                 <option value="price-high">Price: High to Low</option>
                 <option value="newest">Newest First</option>
                 <option value="featured">Featured</option>
+                <option value="teacher">Teacher Created</option>
               </select>
             </div>
           </div>
@@ -369,160 +342,15 @@ const NewCourses = () => {
         {/* Courses Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {filteredCourses.map(course => (
-            <div
+            <CourseCard 
               key={course.id}
-              className="bg-neutral-200 rounded-2xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-xl transition-all duration-300 transform hover:-translate-y-2 group relative"
-            >
-              
-              {/* Course Image */}
-              <div className="relative overflow-hidden">
-                <img
-                  src={course.image}
-                  alt={course.title}
-                  className="w-full h-72 object-cover group-hover:scale-110 transition-transform duration-300"
-                  onError={(e) => {
-                    e.target.onerror = null;
-                    e.target.src = '/default-course.jpg';
-                  }}
-                />
-                
-                {/* Course Badges */}
-                <div className="absolute top-4 left-4 flex flex-col gap-2">
-                  {course.popular && (
-                    <div className="bg-cyan-500 text-white px-3 py-1 rounded-full text-sm font-semibold flex items-center w-fit">
-                      <TrendingUp className="h-4 w-4 mr-1" />
-                      Popular
-                    </div>
-                  )}
-                  {course.isFeatured && (
-                    <div className="bg-purple-500 text-white px-3 py-1 rounded-full text-sm font-semibold flex items-center w-fit">
-                      <BookText className="h-4 w-4 mr-1" />
-                      Featured
-                    </div>
-                  )}
-                  {course.status === 'draft' && (
-                    <div className="bg-yellow-500 text-white px-3 py-1 rounded-full text-sm font-semibold w-fit">
-                      Draft
-                    </div>
-                  )}
-                </div>
-                
-                {/* Price Badge */}
-                <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm rounded-lg px-3 py-1 text-sm font-semibold text-gray-900">
-                  {course.price === 0 ? 'FREE' : `Rs${course.price}`}
-                </div>
-                
-                {/* Level Badge */}
-                <div className="absolute bottom-4 left-4 bg-black/70 text-white px-3 py-1 rounded-full text-xs font-medium">
-                  {course.level}
-                </div>
-                
-                {/* Overlay for non-student users */}
-                {!isAuthorizedStudent() && (
-                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                    <div className="text-white text-center p-4">
-                      <Lock className="h-8 w-8 mx-auto mb-2" />
-                      <p className="font-semibold">Enrollment Available for Students Only</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Course Content */}
-              <div className="p-6">
-                {/* Category Badge */}
-                <span className="inline-block bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-sm font-medium mb-3">
-                  {course.category}
-                </span>
-
-                {/* Title */}
-                <h3 className="text-xl font-bold text-gray-900 mb-3 group-hover:text-cyan-600 transition-colors line-clamp-1">
-                  {course.title}
-                </h3>
-
-                {/* Description */}
-                <p className="text-gray-600 mb-4 line-clamp-2">
-                  {course.description}
-                </p>
-
-                {/* Instructor and Date */}
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center">
-                    <BookOpen className="h-4 w-4 text-gray-400 mr-2" />
-                    <span className="text-sm text-gray-600">by {course.createdBy}</span>
-                  </div>
-                  <span className="text-xs text-gray-500">
-                    {formatDate(course.createdAt)}
-                  </span>
-                </div>
-
-                {/* Course Info */}
-                <div className="flex items-center justify-between mb-4 text-sm text-gray-500">
-                  <div className="flex items-center space-x-4">
-                    <div className="flex items-center">
-                      <Clock className="h-4 w-4 mr-1" />
-                      {course.duration}
-                    </div>
-                    <div className="flex items-center">
-                      <Users className="h-4 w-4 mr-1" />
-                      {course.enrolledStudents.toLocaleString()}
-                    </div>
-                  </div>
-                  <div className="flex items-center">
-                    <Star className="h-4 w-4 text-yellow-400 fill-current mr-1" />
-                    <span>{course.rating.toFixed(1)}</span>
-                  </div>
-                </div>
-
-                {/* Features */}
-                {course.features.length > 0 && (
-                  <div className="mb-6">
-                    <div className="grid grid-cols-2 gap-2">
-                      {course.features.slice(0, 4).map((feature, index) => (
-                        <div key={index} className="flex items-center text-sm text-gray-600">
-                          <CheckCircle className="h-4 w-4 text-green-500 mr-2 flex-shrink-0" />
-                          <span className="truncate">{feature}</span>
-                        </div>
-                      ))}
-                    </div>
-                    {course.features.length > 4 && (
-                      <p className="text-xs text-gray-500 mt-2 text-center">
-                        +{course.features.length - 4} more features
-                      </p>
-                    )}
-                  </div>
-                )}
-
-                {/* CTA Button */}
-                <button 
-                  onClick={() => handleEnrollClick(course)}
-                  className={getButtonStyles()}
-                  disabled={!isAuthorizedStudent()}
-                >
-                  <div className="flex items-center justify-center">
-                    {!isAuthorizedStudent() && <Lock className="h-4 w-4 mr-2" />}
-                    {getButtonText()}
-                  </div>
-                </button>
-
-                {/* Course Status and Helper Text */}
-                <div className="mt-3 flex items-center justify-between">
-                  <span className={`text-xs font-medium px-2 py-1 rounded ${
-                    course.status === 'published' 
-                      ? 'bg-green-100 text-green-800'
-                      : 'bg-yellow-100 text-yellow-800'
-                  }`}>
-                    {course.status}
-                  </span>
-                  
-                  {!isAuthorizedStudent() && isLoggedIn && (
-                    <p className="text-xs text-gray-500">
-                      Switch to student account to enroll
-                    </p>
-                  )}
-                </div>
-              </div>
-            </div>
+              course={course}
+              isAuthorizedStudent={isAuthorizedStudent}
+              getButtonText={getButtonText}
+              getButtonStyles={getButtonStyles}
+              handleEnrollClick={handleEnrollClick}
+              formatDate={formatDate}
+            />
           ))}
         </div>
 
@@ -541,6 +369,7 @@ const NewCourses = () => {
                 onClick={() => {
                   setSearchTerm('');
                   setSelectedCategory('All');
+                  setSortBy('popular');
                 }}
                 className="inline-flex items-center px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
               >
@@ -560,8 +389,180 @@ const NewCourses = () => {
             Refresh Courses
           </button>
           <p className="text-xs text-gray-500 mt-2">
-            Last updated: {new Date().toLocaleTimeString()}
+            Showing {filteredCourses.length} of {totalCourses} courses • Last updated: {new Date().toLocaleTimeString()}
           </p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Separate Course Card Component for better organization
+const CourseCard = ({ 
+  course, 
+  isAuthorizedStudent, 
+  getButtonText, 
+  getButtonStyles, 
+  handleEnrollClick, 
+  formatDate 
+}) => {
+  return (
+    <div className="bg-neutral-200 rounded-2xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-xl transition-all duration-300 transform hover:-translate-y-2 group relative">
+      
+      {/* Course Image */}
+      <div className="relative overflow-hidden">
+        <img
+          src={course.image}
+          alt={course.title}
+          className="w-full h-72 object-cover group-hover:scale-110 transition-transform duration-300"
+          onError={(e) => {
+            e.target.onerror = null;
+            e.target.src = '/default-course.jpg';
+          }}
+        />
+        
+        {/* Course Badges */}
+        <div className="absolute top-4 left-4 flex flex-col gap-2">
+          {course.createdByRole === 'teacher' && (
+            <div className="bg-emerald-500 text-white px-3 py-1 rounded-full text-sm font-semibold flex items-center w-fit">
+              <Sparkles className="h-4 w-4 mr-1" />
+              Teacher Created
+            </div>
+          )}
+          {course.popular && (
+            <div className="bg-cyan-500 text-white px-3 py-1 rounded-full text-sm font-semibold flex items-center w-fit">
+              <TrendingUp className="h-4 w-4 mr-1" />
+              Popular
+            </div>
+          )}
+          {course.isFeatured && (
+            <div className="bg-purple-500 text-white px-3 py-1 rounded-full text-sm font-semibold flex items-center w-fit">
+              <BookText className="h-4 w-4 mr-1" />
+              Featured
+            </div>
+          )}
+        </div>
+        
+        {/* Price Badge */}
+        <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm rounded-lg px-3 py-1 text-sm font-semibold text-gray-900">
+          {course.price === 0 ? 'FREE' : `₹${course.price}`}
+        </div>
+        
+        {/* Level Badge */}
+        <div className="absolute bottom-4 left-4 bg-black/70 text-white px-3 py-1 rounded-full text-xs font-medium">
+          {course.level}
+        </div>
+        
+        {/* Overlay for non-student users */}
+        {!isAuthorizedStudent() && (
+          <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+            <div className="text-white text-center p-4">
+              <Lock className="h-8 w-8 mx-auto mb-2" />
+              <p className="font-semibold">Enrollment Available for Students Only</p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Course Content */}
+      <div className="p-6">
+        {/* Category Badge */}
+        <span className="inline-block bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-sm font-medium mb-3">
+          {course.category}
+        </span>
+
+        {/* Title */}
+        <h3 className="text-xl font-bold text-gray-900 mb-3 group-hover:text-cyan-600 transition-colors line-clamp-1">
+          {course.title}
+        </h3>
+
+        {/* Description */}
+        <p className="text-gray-600 mb-4 line-clamp-2">
+          {course.description}
+        </p>
+
+        {/* Instructor and Date */}
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center">
+            <BookOpen className="h-4 w-4 text-gray-400 mr-2" />
+            <div>
+              <span className="text-sm text-gray-600">by {course.createdBy}</span>
+              {course.createdByRole === 'teacher' && (
+                <span className="ml-2 text-xs text-emerald-600 bg-emerald-50 px-1 py-0.5 rounded">
+                  Teacher
+                </span>
+              )}
+            </div>
+          </div>
+          <span className="text-xs text-gray-500">
+            {formatDate(course.createdAt)}
+          </span>
+        </div>
+
+        {/* Course Info */}
+        <div className="flex items-center justify-between mb-4 text-sm text-gray-500">
+          <div className="flex items-center space-x-4">
+            <div className="flex items-center">
+              <Clock className="h-4 w-4 mr-1" />
+              {course.duration}
+            </div>
+            <div className="flex items-center">
+              <Users className="h-4 w-4 mr-1" />
+              {course.enrolledStudents.toLocaleString()}
+            </div>
+          </div>
+          <div className="flex items-center">
+            <Star className="h-4 w-4 text-yellow-400 fill-current mr-1" />
+            <span>{course.rating.toFixed(1)}</span>
+          </div>
+        </div>
+
+        {/* Features */}
+        {course.features.length > 0 && (
+          <div className="mb-6">
+            <div className="grid grid-cols-2 gap-2">
+              {course.features.slice(0, 4).map((feature, index) => (
+                <div key={index} className="flex items-center text-sm text-gray-600">
+                  <CheckCircle className="h-4 w-4 text-green-500 mr-2 flex-shrink-0" />
+                  <span className="truncate">{feature}</span>
+                </div>
+              ))}
+            </div>
+            {course.features.length > 4 && (
+              <p className="text-xs text-gray-500 mt-2 text-center">
+                +{course.features.length - 4} more features
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* CTA Button */}
+        <button 
+          onClick={() => handleEnrollClick(course)}
+          className={getButtonStyles()}
+          disabled={!isAuthorizedStudent()}
+        >
+          <div className="flex items-center justify-center">
+            {!isAuthorizedStudent() && <Lock className="h-4 w-4 mr-2" />}
+            {getButtonText()}
+          </div>
+        </button>
+
+        {/* Course Status and Helper Text */}
+        <div className="mt-3 flex items-center justify-between">
+          <span className={`text-xs font-medium px-2 py-1 rounded ${
+            course.status === 'published' 
+              ? 'bg-green-100 text-green-800'
+              : 'bg-yellow-100 text-yellow-800'
+          }`}>
+            {course.status}
+          </span>
+          
+          {!isAuthorizedStudent() && isLoggedIn && (
+            <p className="text-xs text-gray-500">
+              Switch to student account to enroll
+            </p>
+          )}
         </div>
       </div>
     </div>

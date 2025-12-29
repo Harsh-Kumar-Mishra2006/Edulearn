@@ -46,7 +46,7 @@ const Navbar = () => {
     } else if (user?.role === 'teacher') {
       return [
         ...baseItems,
-        { name: 'My Courses', href: '/my-courses', current: false },
+        /*{ name: 'My Courses', href: '/my-courses', current: false },*/
         { name: 'Create Course', href: '/create-course', current: false },
         { name: 'Quiz', href: '/quiz-creator', current: false },
         { name: 'Analytics', href: '/analytics', current: false },

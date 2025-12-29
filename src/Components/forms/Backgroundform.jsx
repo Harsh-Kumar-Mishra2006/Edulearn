@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate ,useLocation} from 'react-router-dom';
 import { ArrowLeft, GraduationCap, Briefcase, Book } from 'lucide-react';
 import axios from 'axios';
+import CourseSummary from '../Student/course/courseSummary';
 
 const BackgroundForm = () => {
   const navigate = useNavigate();
@@ -124,6 +125,7 @@ const { course } = location.state || {};
   return (
     <div className="min-h-screen bg-gradient to-br from-green-50 to-teal-100 py-8">
       <div className="max-w-2xl mx-auto px-4">
+        <CourseSummary course={course} />
         
         {/* Header */}
         <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">
@@ -195,7 +197,9 @@ const { course } = location.state || {};
                 ))}
               </select>
             </div>
-
+            
+            <div className='border-2 border-black p-2'>
+              <span className="font-bold text-blue-500  ">*Optional</span>
             {/* Profession and Field of Study */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
@@ -207,7 +211,6 @@ const { course } = location.state || {};
                   name="profession"
                   value={formData.profession}
                   onChange={handleChange}
-                  required
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors"
                   placeholder="e.g., Software Engineer"
                 />
@@ -222,11 +225,11 @@ const { course } = location.state || {};
                   name="field_of_study"
                   value={formData.field_of_study}
                   onChange={handleChange}
-                  required
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors"
                   placeholder="e.g., Computer Science"
                 />
               </div>
+            </div>
             </div>
 
           </div>

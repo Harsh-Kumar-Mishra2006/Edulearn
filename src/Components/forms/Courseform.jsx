@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate,useLocation } from 'react-router-dom';
 import { ArrowLeft, Code, Target, Clock, Zap, Book, Languages } from 'lucide-react';
 import axios from 'axios';
+import CourseSummary from '../Student/course/courseSummary';
 
 const CourseForm = () => {
   const navigate = useNavigate();
@@ -41,51 +42,58 @@ const { course } = location.state || {};
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
+  e.preventDefault();
+  
+  if (!studentEmail) {
+    alert('Please complete previous steps first.');
+    navigate('/personal-form');
+    return;
+  }
+
+  setLoading(true);
+
+  try {
+    // ✅ Ensure optional fields are sent as empty strings
+    const dataToSend = {
+      email: studentEmail,
+      currentskills: formData.currentskills,
+      fieldofstudy: formData.fieldofstudy,
+      language: formData.language,
+      goals: formData.goals || '',  // Send empty string if not selected
+      background: formData.background || '',
+      timecommitment: formData.timecommitment || ''
+    };
     
-    if (!studentEmail) {
-      alert('Please complete previous steps first.');
-      navigate('/personal-form');
-      return;
-    }
-
-    setLoading(true);
-
-    try {
-      console.log('🟡 Frontend - Sending course data:', { ...formData, email: studentEmail });
-      
-      const response = await axios.post(' https://edulearnbackend-ffiv.onrender.com/api/course/save', {
-        ...formData,
-        email: studentEmail
+    console.log('🟡 Frontend - Sending course data:', dataToSend);
+    
+    const response = await axios.post('https://edulearnbackend-ffiv.onrender.com/api/course/save', dataToSend);
+    
+    console.log('🟢 Frontend - Course save response:', response.data);
+    
+    if (response.data.success) {
+      alert('Course details saved successfully!');
+      navigate('/payment', { 
+        state: { 
+          course: course,
+          email: studentEmail 
+        } 
       });
-      
-      console.log('🟢 Frontend - Course save response:', response.data);
-      
-      if (response.data.success) {
-        alert('Course details saved successfully!');
-       navigate('/payment', { 
-  state: { 
-    course: course,
-    email: studentEmail 
-  } 
-});
-
-      }
-    } catch (error) {
-      console.error('🔴 Frontend - Error saving course details:', error);
-      console.error('🔴 Frontend - Error response:', error.response?.data);
-      
-      if (error.response?.data?.error) {
-        alert('Error: ' + error.response.data.error);
-      } else if (error.request) {
-        alert('Network error: Could not connect to server.');
-      } else {
-        alert('Error: ' + error.message);
-      }
-    } finally {
-      setLoading(false);
     }
-  };
+  } catch (error) {
+    console.error('🔴 Frontend - Error saving course details:', error);
+    console.error('🔴 Frontend - Error response:', error.response?.data);
+    
+    if (error.response?.data?.error) {
+      alert('Error: ' + error.response.data.error);
+    } else if (error.request) {
+      alert('Network error: Could not connect to server.');
+    } else {
+      alert('Error: ' + error.message);
+    }
+  } finally {
+    setLoading(false);
+  }
+};
 
   // Options for dropdowns
   const currentSkillsOptions = [
@@ -148,6 +156,7 @@ const { course } = location.state || {};
   return (
     <div className="min-h-screen bg-gradient to-br from-neutral-100 to-gray-100 py-8">
       <div className="max-w-2xl mx-auto px-4">
+        <CourseSummary course={course} />
         
         {/* Header */}
         <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">
@@ -240,6 +249,8 @@ const { course } = location.state || {};
               </select>
             </div>
 
+            <div className='border-2 border-black p-2'>
+              <span className="font-bold text-blue-500  ">*Optional</span>
             {/* Learning Goals */}
             <div>
               <label className="flex items-center text-sm font-medium text-gray-700 mb-2">
@@ -250,7 +261,6 @@ const { course } = location.state || {};
                 name="goals"
                 value={formData.goals}
                 onChange={handleChange}
-                required
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors"
               >
                 <option value="">Select your learning goals</option>
@@ -270,7 +280,6 @@ const { course } = location.state || {};
                 name="background"
                 value={formData.background}
                 onChange={handleChange}
-                required
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors"
               >
                 <option value="">Select your current background</option>
@@ -279,6 +288,7 @@ const { course } = location.state || {};
                 ))}
               </select>
             </div>
+
 
             {/* Time Commitment */}
             <div>
@@ -290,7 +300,6 @@ const { course } = location.state || {};
                 name="timecommitment"
                 value={formData.timecommitment}
                 onChange={handleChange}
-                required
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors"
               >
                 <option value="">Select your available time</option>
@@ -299,6 +308,7 @@ const { course } = location.state || {};
                 ))}
               </select>
             </div>
+             </div>
 
           </div>
 
