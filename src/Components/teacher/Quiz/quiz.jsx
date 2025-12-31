@@ -42,6 +42,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import AddQuizForm from '../../forms/Addquizform';
 import AddAssignmentForm from '../../forms/assignmentForm';
+import AssignmentView from '../assignment/assignmentView';
 
 const Quiz = () => {
   const [isAuthorized, setIsAuthorized] = useState(false);
@@ -631,15 +632,16 @@ const Quiz = () => {
       <AnimatePresence>
         {showAssignmentForm && (
           <CreateAssignmentForm 
-            courses={courses}
-            onClose={() => setShowAssignmentForm(false)}
-            onSuccess={() => {
-              setShowAssignmentForm(false);
-              setRefreshTrigger(prev => prev + 1);
-            }}
-          />
+  courses={courses}
+  onClose={() => setShowAssignmentForm(false)}
+  onSuccess={() => {
+    setShowAssignmentForm(false);
+    setRefreshTrigger(prev => prev + 1);
+  }}
+/>
         )}
       </AnimatePresence>
+      <AssignmentView/>
     </div>
   );
 };
@@ -1216,40 +1218,103 @@ const CreateQuizForm = ({ courses, onClose, onSuccess }) => {
 };
 
 // Create Assignment Form Component
-const CreateAssignmentForm = ({ courses, onClose, onSuccess }) => {
+const CreateAssignmentForm = ({ courses, onClose, onSuccess,onsubmit  }) => {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
 
-  const handleSubmit = async (assignmentData) => {
-    setLoading(true);
-    setMessage({ type: '', text: '' });
+  // Update the handleSubmit function in Quiz.jsx (CreateAssignmentForm component)
+const handleSubmit = async (assignmentData) => {
+  setLoading(true);
+  setMessage({ type: '', text: '' });
 
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('https://edulearnbackend-ffiv.onrender.com/api/assignments/teacher/assignments', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(assignmentData)
-      });
+  console.log('📤 [DEBUG] Assignment data being sent:', assignmentData);
 
-      if (response.ok) {
-        setMessage({ type: 'success', text: 'Daily assignment created successfully!' });
-        setTimeout(() => {
-          onSuccess();
-        }, 1500);
-      } else {
-        const error = await response.json();
-        setMessage({ type: 'error', text: error.error || 'Failed to create assignment' });
-      }
-    } catch (error) {
-      setMessage({ type: 'error', text: 'Network error occurred' });
-    } finally {
-      setLoading(false);
+  try {
+    const token = localStorage.getItem('token');
+    
+    // Validate assignment data
+    if (!assignmentData.course_id || !assignmentData.assignment_title || !assignmentData.questions) {
+      throw new Error('Missing required fields');
     }
-  };
+
+    // Ensure questions have proper structure
+    const validatedQuestions = assignmentData.questions.map((q, index) => ({
+      question_number: index + 1,
+      question_text: q.question_text || '',
+      question_type: 'mcq',
+      options: q.options || { A: '', B: '', C: '', D: '' },
+      correct_option: q.correct_option || 'A',
+      explanation: q.explanation || '',
+      points: q.points || 1
+    }));
+
+    // Ensure due_date is proper ISO string
+    const dueDateTime = new Date(assignmentData.due_date);
+    if (isNaN(dueDateTime.getTime())) {
+      throw new Error('Invalid due date');
+    }
+
+    const payload = {
+      course_id: assignmentData.course_id,
+      assignment_title: assignmentData.assignment_title,
+      assignment_description: assignmentData.assignment_description || '',
+      assignment_topic: assignmentData.assignment_topic || '',
+      assignment_date: new Date().toISOString(), // Current date
+      due_date: dueDateTime.toISOString(),
+      questions: validatedQuestions,
+      settings: assignmentData.settings || {
+        max_attempts: 1,
+        allow_late_submission: false,
+        late_submission_penalty: 0,
+        show_answers_after_due: false,
+        is_active: true
+      }
+    };
+
+    console.log('📤 [DEBUG] Payload to send:', JSON.stringify(payload, null, 2));
+
+    const response = await fetch('https://edulearnbackend-ffiv.onrender.com/api/assignments/teacher/assignments', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+
+    console.log('📥 [DEBUG] Response status:', response.status);
+
+    if (!response.ok) {
+      let errorText = `HTTP ${response.status}`;
+      try {
+        const errorData = await response.json();
+        errorText = errorData.error || JSON.stringify(errorData);
+      } catch (e) {
+        errorText = await response.text();
+      }
+      console.error('🔴 [DEBUG] Backend error:', errorText);
+      throw new Error(errorText);
+    }
+
+    const data = await response.json();
+    console.log('✅ [DEBUG] Assignment created:', data);
+    
+    setMessage({ type: 'success', text: 'Daily assignment created successfully!' });
+    
+    setTimeout(() => {
+      onSuccess();
+    }, 1500);
+
+  } catch (error) {
+    console.error('🔴 [DEBUG] Form submission error:', error);
+    setMessage({ 
+      type: 'error', 
+      text: `Error: ${error.message || 'Failed to create assignment'}` 
+    });
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <motion.div
@@ -1296,6 +1361,7 @@ const CreateAssignmentForm = ({ courses, onClose, onSuccess }) => {
             courses={courses}
             onSubmit={handleSubmit}
             loading={loading}
+            setLoading={setLoading}
             onCancel={onClose}
           />
         </div>

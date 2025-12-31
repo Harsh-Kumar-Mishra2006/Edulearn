@@ -32,30 +32,46 @@ const NewCourses = () => {
 
   const navigate = useNavigate();
 
-  // Fetch courses from service
   const fetchCourses = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      const allCourses = await TeacherCourseService.fetchAllCourses();
-      
-      setCourses(allCourses);
-      setFilteredCourses(allCourses);
+  try {
+    setLoading(true);
+    setError(null);
+    
+    console.log('🔄 Fetching courses...');
+    
+    // Direct test without service
+    const token = localStorage.getItem('token');
+    const response = await fetch('http://localhost:3000/api/teacher/courses', {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    console.log('Direct fetch status:', response.status);
+    const result = await response.json();
+    console.log('Direct fetch result:', result);
+    
+    if (result.success) {
+      setCourses(result.data || []);
+      setFilteredCourses(result.data || []);
       
       // Extract unique categories
-      const uniqueCategories = ['All', ...new Set(allCourses.map(c => c.category).filter(Boolean))];
+      const uniqueCategories = ['All', ...new Set((result.data || []).map(c => c.category).filter(Boolean))];
       setCategories(uniqueCategories);
-      
-    } catch (err) {
-      console.error('Error fetching courses:', err);
-      setError('Failed to load courses. Please try again later.');
-      setCourses([]);
-      setFilteredCourses([]);
-    } finally {
-      setLoading(false);
+    } else {
+      setError(result.error || 'Failed to fetch courses');
     }
-  };
+    
+  } catch (err) {
+    console.error('❌ Error fetching courses:', err);
+    setError('Failed to load courses. Please try again later.');
+    setCourses([]);
+    setFilteredCourses([]);
+  } finally {
+    setLoading(false);
+  }
+};
 
   // Check authentication status
   useEffect(() => {

@@ -298,22 +298,22 @@ const handleChange = (e) => {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-6 text-black">
           {/* Two Column Layout */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 text-black">
             {/* Left Column */}
-            <div className="space-y-6">
+            <div className="space-y-6 text-black">
               {/* Course Title */}
-              <div>
-                <label className="block text-gray-700 text-sm font-medium mb-2">
-                  Course Title *
+              <div className=''>
+                <label className="block text-gray-700text-sm font-medium mb-2">
+                  Course Name
                 </label>
                 <input
                   type="text"
                   name="title"
                   value={formData.title}
                   onChange={handleChange}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                  className="w-full bg-slate-500 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                   placeholder="e.g., Web Development Masterclass"
                   required
                 />

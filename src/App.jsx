@@ -21,7 +21,7 @@ import StudentDashboard from './Components/Student/studentdashboard/StudentDashb
 import Analytics from './Components/admin/Analytics/Analytics';
 import AdminAnalytics from './Components/admin/Analytics/Analytics';
 import NewCourses from './sections/newCourses';
-
+import StudentAssignmentView from './Components/Student/assignments/studentAssignments';
 // Add this admin check function
 const checkAdminAuth = () => {
   const token = localStorage.getItem('token');
@@ -62,7 +62,6 @@ const App = () => {
             <>
               <HeroSection />
               <CoursesPage />
-              <NewCourses/>
             </>
           } />
           <Route path="/dashboard" element={
@@ -88,6 +87,7 @@ const App = () => {
           <Route path='/quiz-creator' element={<Quiz/>}/>
           <Route path="/quiz/attempt/:attemptId" element={<QuizAttempt />} />
           <Route path="/student-record" element={<StudentDashboard/>}/>
+          <Route path="/assignments" element={<StudentAssignmentView/>}/>
 
           {/* Individual pages */}
           <Route path="/courses" element={<CoursesPage />} />
@@ -104,6 +104,7 @@ const App = () => {
           <Route path="/admin-settings" element={<AdminDashboard />} />
 
         </Routes>
+        <NewCourses/>
         <Footer />
       </div>
     </Router>

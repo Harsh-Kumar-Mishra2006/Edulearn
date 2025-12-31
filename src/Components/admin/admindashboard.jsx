@@ -28,35 +28,68 @@ const AdminDashboard = () => {
   const [copiedField, setCopiedField] = useState(null);
   const navigate = useNavigate();
 
-  // Fetch teachers from backend
   const fetchTeachers = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('https://edulearnbackend-ffiv.onrender.com/api/admin/teachers', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
+  try {
+    setLoading(true); // Add this
+    const token = localStorage.getItem('token');
+    
+    // Add timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    
+    const response = await fetch('https://edulearnbackend-ffiv.onrender.com/api/admin/teachers', {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      signal: controller.signal
+    });
 
-      if (response.ok) {
-        const data = await response.json();
-        setTeachers(data.data || data.teachers || []);
+    clearTimeout(timeoutId);
+    
+    if (response.ok) {
+      const result = await response.json();
+      // Debug: Check actual response structure
+      console.log('Teachers API Response:', result);
+      
+      // Use result.data (based on your backend response)
+      if (result.success && Array.isArray(result.data)) {
+        setTeachers(result.data);
+      } else if (Array.isArray(result.teachers)) {
+        setTeachers(result.teachers);
       } else {
-        console.error('Failed to fetch teachers');
+        console.error('Unexpected response format:', result);
         setTeachers([]);
       }
-    } catch (error) {
-      console.error('Error fetching teachers:', error);
+    } else {
+      console.error('Failed to fetch teachers:', response.status);
       setTeachers([]);
     }
-  };
-
-  // Fetch courses from backend
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      console.error('Request timeout');
+    } else {
+      console.error('Error fetching teachers:', error);
+    }
+    setTeachers([]);
+  } finally {
+    setLoading(false); // ✅ CRITICAL: Always set loading to false
+  }
+};
  
   useEffect(() => {
-    fetchTeachers();
-  }, []);
+  let isMounted = true;
+  
+  const loadData = async () => {
+    await fetchTeachers();
+  };
+  
+  loadData();
+  
+  return () => {
+    isMounted = false;
+  };
+}, []);
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -213,7 +246,7 @@ const AdminDashboard = () => {
           {/* Action Cards - Updated with 3 cards */}
           <motion.div 
             variants={itemVariants}
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl mx-auto mt-12"
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-8 max-w-6xl mx-auto mt-12"
           >
             {/* Add Teachers Card */}
             <motion.div 

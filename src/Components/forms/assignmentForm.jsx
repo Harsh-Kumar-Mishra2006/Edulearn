@@ -16,18 +16,19 @@ import {
   FileText
 } from 'lucide-react';
 
-const AddAssignmentForm = ({ courses, onSubmit, loading, onCancel }) => {
+const AddAssignmentForm = ({ courses, onSubmit, loading,setLoading, onCancel }) => {
   const [currentStep, setCurrentStep] = useState(0);
+  const [message, setMessage] = useState({ type: '', text: '' }); // ADDED
   const [assignmentData, setAssignmentData] = useState({
     course_id: courses.length > 0 ? courses[0]._id : '',
     assignment_title: '',
     assignment_description: '',
     assignment_topic: '',
-    assignment_date: new Date().toISOString().split('T')[0], // Today's date
-    due_date: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Tomorrow
+    assignment_date: new Date().toISOString().split('T')[0],
+    due_date: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     due_time: '23:59',
     questions: [],
-    total_points: 0, // ADD THIS
+    total_points: 0,
     settings: {
       max_attempts: 1,
       allow_late_submission: false,
@@ -68,95 +69,91 @@ const AddAssignmentForm = ({ courses, onSubmit, loading, onCancel }) => {
   };
 
   // Add new question
-  // Add new question
-const addQuestion = () => {
-  if (assignmentData.questions.length >= 20) {
-    alert('Maximum 20 questions allowed for daily assignments');
-    return;
-  }
+  const addQuestion = () => {
+    if (assignmentData.questions.length >= 20) {
+      alert('Maximum 20 questions allowed for daily assignments');
+      return;
+    }
 
-  const newQuestion = {
-    question_number: assignmentData.questions.length + 1,
-    question_text: '',
-    options: {
-      A: '',
-      B: '',
-      C: '',
-      D: ''
-    },
-    correct_option: 'A',
-    explanation: '',
-    points: 1, // Ensure this is a number
-    question_type: 'mcq'
-  };
-  
-  setAssignmentData(prev => ({
-    ...prev,
-    questions: [...prev.questions, newQuestion],
-    total_points: prev.total_points + 1 // Update total points
-  }));
-};
-
-  // Update question
-  // Update question
-const updateQuestion = (index, field, value) => {
-  const updatedQuestions = [...assignmentData.questions];
-  
-  if (field.startsWith('options.')) {
-    const optionKey = field.split('.')[1];
-    updatedQuestions[index] = {
-      ...updatedQuestions[index],
+    const newQuestion = {
+      question_number: assignmentData.questions.length + 1,
+      question_text: '',
       options: {
-        ...updatedQuestions[index].options,
-        [optionKey]: value
-      }
+        A: '',
+        B: '',
+        C: '',
+        D: ''
+      },
+      correct_option: 'A',
+      explanation: '',
+      points: 1,
+      question_type: 'mcq'
     };
-  } else if (field === 'points') {
-    // Handle points update and recalculate total
-    const oldPoints = updatedQuestions[index].points || 0;
-    updatedQuestions[index] = {
-      ...updatedQuestions[index],
-      points: parseInt(value) || 1
-    };
-    const newPoints = updatedQuestions[index].points;
+    
+    setAssignmentData(prev => ({
+      ...prev,
+      questions: [...prev.questions, newQuestion],
+      total_points: prev.total_points + 1
+    }));
+  };
+
+  // Update question
+  const updateQuestion = (index, field, value) => {
+    const updatedQuestions = [...assignmentData.questions];
+    
+    if (field.startsWith('options.')) {
+      const optionKey = field.split('.')[1];
+      updatedQuestions[index] = {
+        ...updatedQuestions[index],
+        options: {
+          ...updatedQuestions[index].options,
+          [optionKey]: value
+        }
+      };
+    } else if (field === 'points') {
+      const oldPoints = updatedQuestions[index].points || 0;
+      updatedQuestions[index] = {
+        ...updatedQuestions[index],
+        points: parseInt(value) || 1
+      };
+      const newPoints = updatedQuestions[index].points;
+      
+      setAssignmentData(prev => ({
+        ...prev,
+        questions: updatedQuestions,
+        total_points: prev.total_points - oldPoints + newPoints
+      }));
+      return;
+    } else {
+      updatedQuestions[index] = {
+        ...updatedQuestions[index],
+        [field]: value
+      };
+    }
+    
+    setAssignmentData(prev => ({
+      ...prev,
+      questions: updatedQuestions
+    }));
+  };
+
+  // Delete question
+  const deleteQuestion = (index) => {
+    const deletedPoints = assignmentData.questions[index].points || 0;
+    
+    const updatedQuestions = assignmentData.questions
+      .filter((_, i) => i !== index)
+      .map((question, idx) => ({
+        ...question,
+        question_number: idx + 1
+      }));
     
     setAssignmentData(prev => ({
       ...prev,
       questions: updatedQuestions,
-      total_points: prev.total_points - oldPoints + newPoints
+      total_points: prev.total_points - deletedPoints
     }));
-    return;
-  } else {
-    updatedQuestions[index] = {
-      ...updatedQuestions[index],
-      [field]: value
-    };
-  }
-  
-  setAssignmentData(prev => ({
-    ...prev,
-    questions: updatedQuestions
-  }));
-};
-
-  // Delete question
- // Delete question
-const deleteQuestion = (index) => {
-  const deletedPoints = assignmentData.questions[index].points || 0;
-  
-  const updatedQuestions = assignmentData.questions
-    .filter((_, i) => i !== index)
-    .map((question, idx) => ({
-      ...question,
-      question_number: idx + 1
-    }));
-  
-  setAssignmentData(prev => ({
-    ...prev,
-    questions: updatedQuestions,
-    total_points: prev.total_points - deletedPoints
-  }));
-};
+  };
 
   // Validate current step
   const validateStep = (step) => {
@@ -168,82 +165,87 @@ const deleteQuestion = (index) => {
                assignmentData.assignment_date &&
                assignmentData.due_date;
       case 1: // Questions
-  return assignmentData.questions.length > 0 && 
-         assignmentData.questions.length <= 20 &&
-         assignmentData.questions.every(q => {
-           // Check question text
-           if (!q.question_text.trim()) return false;
-           
-           // Check all options exist and are not empty
-           const options = q.options || {};
-           if (!options.A || !options.B || !options.C || !options.D) return false;
-           if (!options.A.trim() || !options.B.trim() || !options.C.trim() || !options.D.trim()) return false;
-           
-           // Check correct option is valid
-           if (!['A', 'B', 'C', 'D'].includes(q.correct_option)) return false;
-           
-           // Check points is a number
-           if (isNaN(q.points) || q.points < 1) return false;
-           
-           return true;
-         });
-      case 2: // Questions
         return assignmentData.questions.length > 0 && 
                assignmentData.questions.length <= 20 &&
-               assignmentData.questions.every(q => 
-                 q.question_text.trim() && 
-                 q.options.A.trim() && 
-                 q.options.B.trim() && 
-                 q.options.C.trim() && 
-                 q.options.D.trim()
-               );
-      case 3: // Settings
+               assignmentData.questions.every(q => {
+                 if (!q.question_text.trim()) return false;
+                 
+                 const options = q.options || {};
+                 if (!options.A || !options.B || !options.C || !options.D) return false;
+                 if (!options.A.trim() || !options.B.trim() || !options.C.trim() || !options.D.trim()) return false;
+                 
+                 if (!['A', 'B', 'C', 'D'].includes(q.correct_option)) return false;
+                 
+                 if (isNaN(q.points) || q.points < 1) return false;
+                 
+                 return true;
+               });
+      case 2: // Settings
         return assignmentData.settings.max_attempts >= 1;
       default:
         return true;
     }
   };
 
-  // Handle form submission
-  // Handle form submission
-// In parent component where you handle form submission:
-const handleSubmitAssignment = async (assignmentData) => {
-  try {
-    console.log('📤 Sending assignment data:', assignmentData);
-    
-    // Make sure you have the token
-    const token = localStorage.getItem('teacherToken'); // or your token key
-    
-    const response = await fetch('/api/assignments/teacher/assignments', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify(assignmentData)
-    });
-    
-    console.log('📥 Response status:', response.status);
-    
-    if (!response.ok) {
-      const errorData = await response.json();
-      console.error('🔴 Backend error:', errorData);
-      throw new Error(errorData.error || 'Failed to create assignment');
-    }
-    
-    const data = await response.json();
-    console.log('✅ Assignment created:', data);
-    
-    // Handle success
-    alert('Assignment created successfully!');
-    
-  } catch (error) {
-    console.error('🔴 Form submission error:', error);
-    alert(`Error: ${error.message}`);
-  }
-};
 
-  // Render step content
+  const handleFormSubmit = async (e) => {
+    e.preventDefault();
+    
+    // Validate all steps
+    for (let i = 0; i < steps.length; i++) {
+      if (!validateStep(i)) {
+        setCurrentStep(i);
+        alert(`Please complete step ${i + 1}: ${steps[i].title}`);
+        return;
+      }
+    }
+
+    // Use setLoading prop instead of local state
+    setLoading(true); // This will now work
+    setMessage({ type: '', text: '' });
+
+    try {
+      // Prepare the data for submission
+      const submissionData = {
+        course_id: assignmentData.course_id,
+        assignment_title: assignmentData.assignment_title,
+        assignment_description: assignmentData.assignment_description,
+        assignment_topic: assignmentData.assignment_topic,
+        assignment_date: new Date(assignmentData.assignment_date).toISOString(),
+        due_date: new Date(`${assignmentData.due_date}T${assignmentData.due_time}`).toISOString(),
+        questions: assignmentData.questions.map(q => ({
+          question_text: q.question_text,
+          question_type: 'mcq',
+          options: q.options,
+          correct_option: q.correct_option,
+          explanation: q.explanation || '',
+          points: q.points || 1
+        })),
+        settings: assignmentData.settings
+      };
+
+      console.log('📤 Sending assignment data:', submissionData);
+      
+      // Call the parent's onSubmit function
+      await onSubmit(submissionData);
+      
+      // If we reach here, submission was successful
+      setMessage({ type: 'success', text: 'Assignment created successfully!' });
+      
+      setTimeout(() => {
+        onCancel();
+      }, 1500);
+      
+    } catch (error) {
+      console.error('🔴 Form submission error:', error);
+      setMessage({ 
+        type: 'error', 
+        text: error.message || 'Failed to create assignment. Please try again.' 
+      });
+    } finally {
+      setLoading(false); // This will now work
+    }
+  };
   const renderStepContent = () => {
     switch (currentStep) {
       case 0:
@@ -274,6 +276,17 @@ const handleSubmitAssignment = async (assignmentData) => {
 
   return (
     <div className="space-y-6">
+      {/* Show success/error messages */}
+      {message.text && (
+        <div className={`p-4 rounded-lg ${
+          message.type === 'success' 
+            ? 'bg-green-100 text-green-800 border border-green-200' 
+            : 'bg-red-100 text-red-800 border border-red-200'
+        }`}>
+          {message.text}
+        </div>
+      )}
+
       {/* Progress Steps */}
       <div className="flex justify-between items-center mb-6">
         {steps.map((step, index) => (
@@ -306,8 +319,7 @@ const handleSubmitAssignment = async (assignmentData) => {
         ))}
       </div>
 
-      {/* Step Content */}
-      <form onSubmit={handleSubmitAssignment}>
+      <form onSubmit={handleFormSubmit}>
         {renderStepContent()}
 
         {/* Navigation Buttons */}
@@ -358,6 +370,9 @@ const handleSubmitAssignment = async (assignmentData) => {
   );
 };
 
+// Keep all the other components (BasicInfoStep, QuestionsStep, etc.) the same as before
+// ... [Rest of your components remain unchanged]
+
 // Step 1: Basic Information
 const BasicInfoStep = ({ assignmentData, courses, maxDate, onChange }) => {
   const today = new Date().toISOString().split('T')[0];
@@ -396,6 +411,7 @@ const BasicInfoStep = ({ assignmentData, courses, maxDate, onChange }) => {
           </label>
           <input
             type="text"
+             name="assignment_title" // ADD THIS
             value={assignmentData.assignment_title}
             onChange={(e) => onChange('assignment_title', e.target.value)}
             required

@@ -42,6 +42,7 @@ const Navbar = () => {
         { name: 'My Learning', href: '/my-learning', current: false },
         { name: 'Test', href: '/test', current: false },
         { name: 'Record', href: '/student-record', current: false },
+        { name: 'Assignments', href: '/assignments', current: false },
       ];
     } else if (user?.role === 'teacher') {
       return [

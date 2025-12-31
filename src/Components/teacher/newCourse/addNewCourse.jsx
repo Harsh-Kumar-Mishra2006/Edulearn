@@ -231,7 +231,7 @@ const AddNewCourse = ({ onClose, onSuccess }) => {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/api/new-courses', {
+      const response = await fetch('http://localhost:3000/api/teacher/courses', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -317,18 +317,18 @@ const AddNewCourse = ({ onClose, onSuccess }) => {
           {/* Two Column Layout */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Left Column */}
-            <div className="space-y-6">
+            <div className="space-y-6 text-black">
               {/* Course Title */}
               <div>
                 <label className="block text-gray-700 text-sm font-medium mb-2">
-                  Course Title *
+                  Course name *
                 </label>
                 <input
                   type="text"
                   name="title"
                   value={formData.title}
                   onChange={handleChange}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
+                  className="w-full text-black px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
                   placeholder="e.g., Web Development Masterclass"
                   required
                 />
@@ -470,7 +470,7 @@ const AddNewCourse = ({ onClose, onSuccess }) => {
             </div>
 
             {/* Right Column */}
-            <div className="space-y-6">
+            <div className="space-y-6 text-black">
               {/* Image Upload */}
               <div>
                 <label className="block text-gray-700 text-sm font-medium mb-2">
