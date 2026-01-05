@@ -39,7 +39,6 @@ const NewCourses = () => {
     
     console.log('🔄 Fetching courses...');
     
-    // Direct test without service
     const token = localStorage.getItem('token');
     const response = await fetch('http://localhost:3000/api/teacher/courses', {
       headers: {
@@ -50,17 +49,49 @@ const NewCourses = () => {
     
     console.log('Direct fetch status:', response.status);
     const result = await response.json();
-    console.log('Direct fetch result:', result);
+    console.log('Direct fetch result structure:', result);
     
     if (result.success) {
-      setCourses(result.data || []);
-      setFilteredCourses(result.data || []);
+      const coursesData = result.data || [];
+      
+      // Log the first course to see its structure
+      if (coursesData.length > 0) {
+        console.log('First course data:', coursesData[0]);
+        console.log('First course enrolledStudents:', coursesData[0].enrolledStudents);
+      }
+      
+      // Transform the data to ensure it has all required fields
+      const transformedCourses = coursesData.map(course => ({
+        id: course._id || course.id || Date.now(),
+        title: course.title || 'Untitled Course',
+        description: course.description || 'No description available',
+        category: course.category || 'General',
+        image: course.image || '/default-course.jpg',
+        price: course.price || 0,
+        level: course.level || 'Beginner',
+        createdBy: course.createdBy?.name || course.createdBy || 'Unknown',
+        createdByRole: course.createdByRole || 'admin',
+        createdAt: course.createdAt || new Date().toISOString(),
+        duration: course.duration || '10 hours',
+        // Ensure enrolledStudents is a number
+        enrolledStudents: Number(course.enrolledStudents) || 0,
+        rating: Number(course.rating) || 0,
+        popular: Boolean(course.popular),
+        isFeatured: Boolean(course.isFeatured),
+        status: course.status || 'published',
+        features: course.features || []
+      }));
+      
+      setCourses(transformedCourses);
+      setFilteredCourses(transformedCourses);
       
       // Extract unique categories
-      const uniqueCategories = ['All', ...new Set((result.data || []).map(c => c.category).filter(Boolean))];
+      const uniqueCategories = ['All', ...new Set(transformedCourses.map(c => c.category).filter(Boolean))];
       setCategories(uniqueCategories);
     } else {
       setError(result.error || 'Failed to fetch courses');
+      setCourses([]);
+      setFilteredCourses([]);
     }
     
   } catch (err) {
@@ -104,39 +135,49 @@ const NewCourses = () => {
       );
     }
     
-    // Apply sorting
-    result.sort((a, b) => {
-      switch (sortBy) {
-        case 'popular':
-          if (a.popular && !b.popular) return -1;
-          if (!a.popular && b.popular) return 1;
-          return b.enrolledStudents - a.enrolledStudents;
-        
-        case 'rating':
-          return b.rating - a.rating;
-        
-        case 'price-low':
-          return a.price - b.price;
-        
-        case 'price-high':
-          return b.price - a.price;
-        
-        case 'newest':
-          return new Date(b.createdAt) - new Date(a.createdAt);
-        
-        case 'featured':
-          if (a.isFeatured && !b.isFeatured) return -1;
-          if (!a.isFeatured && b.isFeatured) return 1;
-          return 0;
-        
-        case 'teacher':
-          if (a.createdByRole === 'teacher' && b.createdByRole !== 'teacher') return -1;
-          if (a.createdByRole !== 'teacher' && b.createdByRole === 'teacher') return 1;
-          return 0;
-        
-        default:
-          return 0;
-      }
+    // In your useEffect for filtering and sorting, update the sorting section:
+result.sort((a, b) => {
+  // Ensure we have default values for sorting
+  const aEnrolled = a.enrolledStudents || 0;
+  const bEnrolled = b.enrolledStudents || 0;
+  const aRating = a.rating || 0;
+  const bRating = b.rating || 0;
+  const aPrice = a.price || 0;
+  const bPrice = b.price || 0;
+  const aDate = a.createdAt ? new Date(a.createdAt) : new Date(0);
+  const bDate = b.createdAt ? new Date(b.createdAt) : new Date(0);
+  
+  switch (sortBy) {
+    case 'popular':
+      if (a.popular && !b.popular) return -1;
+      if (!a.popular && b.popular) return 1;
+      return bEnrolled - aEnrolled;
+    
+    case 'rating':
+      return bRating - aRating;
+    
+    case 'price-low':
+      return aPrice - bPrice;
+    
+    case 'price-high':
+      return bPrice - aPrice;
+    
+    case 'newest':
+      return bDate - aDate;
+    
+    case 'featured':
+      if (a.isFeatured && !b.isFeatured) return -1;
+      if (!a.isFeatured && b.isFeatured) return 1;
+      return 0;
+    
+    case 'teacher':
+      if (a.createdByRole === 'teacher' && b.createdByRole !== 'teacher') return -1;
+      if (a.createdByRole !== 'teacher' && b.createdByRole === 'teacher') return 1;
+      return 0;
+    
+    default:
+      return 0;
+  }
     });
     
     setFilteredCourses(result);
@@ -366,6 +407,7 @@ const NewCourses = () => {
               getButtonStyles={getButtonStyles}
               handleEnrollClick={handleEnrollClick}
               formatDate={formatDate}
+              isLoggedIn={isLoggedIn}
             />
           ))}
         </div>
@@ -420,8 +462,17 @@ const CourseCard = ({
   getButtonText, 
   getButtonStyles, 
   handleEnrollClick, 
-  formatDate 
+  formatDate,
+  isLoggedIn 
 }) => {
+  // Add safe defaults
+  const enrolledStudents = course.enrolledStudents || 0;
+  const rating = course.rating || 0;
+  const duration = course.duration || 'N/A';
+  const courseFeatures = course.features || [];
+  const courseCategory = course.category || 'General';
+  const courseStatus = course.status || 'published';
+  
   return (
     <div className="bg-neutral-200 rounded-2xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-xl transition-all duration-300 transform hover:-translate-y-2 group relative">
       
@@ -465,9 +516,11 @@ const CourseCard = ({
         </div>
         
         {/* Level Badge */}
-        <div className="absolute bottom-4 left-4 bg-black/70 text-white px-3 py-1 rounded-full text-xs font-medium">
-          {course.level}
-        </div>
+        {course.level && (
+          <div className="absolute bottom-4 left-4 bg-black/70 text-white px-3 py-1 rounded-full text-xs font-medium">
+            {course.level}
+          </div>
+        )}
         
         {/* Overlay for non-student users */}
         {!isAuthorizedStudent() && (
@@ -484,7 +537,7 @@ const CourseCard = ({
       <div className="p-6">
         {/* Category Badge */}
         <span className="inline-block bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-sm font-medium mb-3">
-          {course.category}
+          {courseCategory}
         </span>
 
         {/* Title */}
@@ -520,33 +573,33 @@ const CourseCard = ({
           <div className="flex items-center space-x-4">
             <div className="flex items-center">
               <Clock className="h-4 w-4 mr-1" />
-              {course.duration}
+              {duration}
             </div>
             <div className="flex items-center">
               <Users className="h-4 w-4 mr-1" />
-              {course.enrolledStudents.toLocaleString()}
+              {enrolledStudents.toLocaleString()}
             </div>
           </div>
           <div className="flex items-center">
             <Star className="h-4 w-4 text-yellow-400 fill-current mr-1" />
-            <span>{course.rating.toFixed(1)}</span>
+            <span>{rating.toFixed(1)}</span>
           </div>
         </div>
 
         {/* Features */}
-        {course.features.length > 0 && (
+        {courseFeatures.length > 0 && (
           <div className="mb-6">
             <div className="grid grid-cols-2 gap-2">
-              {course.features.slice(0, 4).map((feature, index) => (
+              {courseFeatures.slice(0, 4).map((feature, index) => (
                 <div key={index} className="flex items-center text-sm text-gray-600">
                   <CheckCircle className="h-4 w-4 text-green-500 mr-2 flex-shrink-0" />
                   <span className="truncate">{feature}</span>
                 </div>
               ))}
             </div>
-            {course.features.length > 4 && (
+            {courseFeatures.length > 4 && (
               <p className="text-xs text-gray-500 mt-2 text-center">
-                +{course.features.length - 4} more features
+                +{courseFeatures.length - 4} more features
               </p>
             )}
           </div>
@@ -567,11 +620,11 @@ const CourseCard = ({
         {/* Course Status and Helper Text */}
         <div className="mt-3 flex items-center justify-between">
           <span className={`text-xs font-medium px-2 py-1 rounded ${
-            course.status === 'published' 
+            courseStatus === 'published' 
               ? 'bg-green-100 text-green-800'
               : 'bg-yellow-100 text-yellow-800'
           }`}>
-            {course.status}
+            {courseStatus}
           </span>
           
           {!isAuthorizedStudent() && isLoggedIn && (
