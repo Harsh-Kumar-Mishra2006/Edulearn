@@ -62,12 +62,14 @@ const App = () => {
             <>
               <HeroSection />
               <CoursesPage />
+               <NewCourses/>
             </>
           } />
           <Route path="/dashboard" element={
             <>
               <HeroSection />
               <CoursesPage />
+               <NewCourses/>
             </>
           } />
 
@@ -104,7 +106,6 @@ const App = () => {
           <Route path="/admin-settings" element={<AdminDashboard />} />
 
         </Routes>
-        <NewCourses/>
         <Footer />
       </div>
     </Router>

@@ -1,10 +1,10 @@
 // components/NewCourses.jsx
 import React, { useState, useEffect } from 'react';
-import { 
-  Star, 
-  Users, 
-  Clock, 
-  Filter, 
+import {
+  Star,
+  Users,
+  Clock,
+  Filter,
   Search,
   BookOpen,
   TrendingUp,
@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import TeacherCourseService from '../services/teacherCourseService'; // Adjust path
+import PersonalForm from '../Components/forms/Personalform';
 
 const NewCourses = () => {
   const [courses, setCourses] = useState([]);
@@ -36,30 +37,77 @@ const NewCourses = () => {
   try {
     setLoading(true);
     setError(null);
-    
+
     console.log('🔄 Fetching courses...');
-    
+
     const token = localStorage.getItem('token');
-    const response = await fetch('http://localhost:3000/api/teacher/courses', {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
+    const userData = JSON.parse(localStorage.getItem('userData') || '{}');
+    const userRole = userData.role || '';
+
+    console.log('User role:', userRole);
+    console.log('User data:', userData);
+
+    // Choose endpoint based on user role
+    let endpoint = '';
+    let headers = {};
+
+    if (userRole === 'teacher') {
+      // Teacher fetches their own courses
+      endpoint = 'http://localhost:3000/api/teacher/courses';
+      if (token) {
+        headers = {
+          'Authorization': `Bearer ${token}`
+        };
       }
+    } else if (userRole === 'student') {
+      // Student fetches published courses - FIXED ENDPOINT
+      endpoint = 'http://localhost:3000/api/student/courses';
+      if (token) {
+        headers = {
+          'Authorization': `Bearer ${token}`
+        };
+      }
+    } else {
+      // Public access (no auth needed) - also use student endpoint
+      endpoint = 'http://localhost:3000/api/student/courses';
+      headers = {}; // No auth header
+    }
+
+    console.log(`Fetching from: ${endpoint} as ${userRole}`);
+    console.log('Headers:', headers);
+
+    const response = await fetch(endpoint, {
+      headers: headers
     });
-    
-    console.log('Direct fetch status:', response.status);
+
+    console.log('Fetch status:', response.status);
+    console.log('Response headers:', response.headers);
+
+    if (!response.ok) {
+      // Try to get error details
+      const errorText = await response.text();
+      console.error('Error response text:', errorText.substring(0, 200));
+      
+      // If it's HTML (404 page), give a more helpful error
+      if (errorText.includes('<!DOCTYPE')) {
+        throw new Error(`Route not found (404). Please check if the backend endpoint ${endpoint} exists.`);
+      }
+      
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
     const result = await response.json();
-    console.log('Direct fetch result structure:', result);
-    
+    console.log('Fetch result:', result);
+
     if (result.success) {
       const coursesData = result.data || [];
-      
+
       // Log the first course to see its structure
       if (coursesData.length > 0) {
         console.log('First course data:', coursesData[0]);
         console.log('First course enrolledStudents:', coursesData[0].enrolledStudents);
       }
-      
+
       // Transform the data to ensure it has all required fields
       const transformedCourses = coursesData.map(course => ({
         id: course._id || course.id || Date.now(),
@@ -69,22 +117,22 @@ const NewCourses = () => {
         image: course.image || '/default-course.jpg',
         price: course.price || 0,
         level: course.level || 'Beginner',
-        createdBy: course.createdBy?.name || course.createdBy || 'Unknown',
-        createdByRole: course.createdByRole || 'admin',
+        createdBy: course.createdBy?.name || course.createdBy || course.instructor || 'Unknown',
+        createdByRole: course.createdByRole || (userRole === 'teacher' ? 'teacher' : 'admin'),
         createdAt: course.createdAt || new Date().toISOString(),
         duration: course.duration || '10 hours',
         // Ensure enrolledStudents is a number
-        enrolledStudents: Number(course.enrolledStudents) || 0,
+        enrolledStudents: Number(course.enrolledStudents) || Number(course.studentsEnrolled) || 0,
         rating: Number(course.rating) || 0,
         popular: Boolean(course.popular),
         isFeatured: Boolean(course.isFeatured),
         status: course.status || 'published',
         features: course.features || []
       }));
-      
+
       setCourses(transformedCourses);
       setFilteredCourses(transformedCourses);
-      
+
       // Extract unique categories
       const uniqueCategories = ['All', ...new Set(transformedCourses.map(c => c.category).filter(Boolean))];
       setCategories(uniqueCategories);
@@ -93,10 +141,10 @@ const NewCourses = () => {
       setCourses([]);
       setFilteredCourses([]);
     }
-    
+
   } catch (err) {
     console.error('❌ Error fetching courses:', err);
-    setError('Failed to load courses. Please try again later.');
+    setError(err.message || 'Failed to load courses. Please try again later.');
     setCourses([]);
     setFilteredCourses([]);
   } finally {
@@ -108,9 +156,9 @@ const NewCourses = () => {
   useEffect(() => {
     checkAuthStatus();
     fetchCourses();
-    
+
     window.addEventListener('authChange', checkAuthStatus);
-    
+
     return () => {
       window.removeEventListener('authChange', checkAuthStatus);
     };
@@ -119,90 +167,100 @@ const NewCourses = () => {
   // Filter and sort courses
   useEffect(() => {
     let result = [...courses];
-    
+
     // Apply category filter
     if (selectedCategory !== 'All') {
       result = result.filter(course => course.category === selectedCategory);
     }
-    
+
     // Apply search filter
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
-      result = result.filter(course => 
+      result = result.filter(course =>
         course.title.toLowerCase().includes(term) ||
         course.description.toLowerCase().includes(term) ||
         course.category.toLowerCase().includes(term)
       );
     }
-    
+
     // In your useEffect for filtering and sorting, update the sorting section:
-result.sort((a, b) => {
-  // Ensure we have default values for sorting
-  const aEnrolled = a.enrolledStudents || 0;
-  const bEnrolled = b.enrolledStudents || 0;
-  const aRating = a.rating || 0;
-  const bRating = b.rating || 0;
-  const aPrice = a.price || 0;
-  const bPrice = b.price || 0;
-  const aDate = a.createdAt ? new Date(a.createdAt) : new Date(0);
-  const bDate = b.createdAt ? new Date(b.createdAt) : new Date(0);
-  
-  switch (sortBy) {
-    case 'popular':
-      if (a.popular && !b.popular) return -1;
-      if (!a.popular && b.popular) return 1;
-      return bEnrolled - aEnrolled;
-    
-    case 'rating':
-      return bRating - aRating;
-    
-    case 'price-low':
-      return aPrice - bPrice;
-    
-    case 'price-high':
-      return bPrice - aPrice;
-    
-    case 'newest':
-      return bDate - aDate;
-    
-    case 'featured':
-      if (a.isFeatured && !b.isFeatured) return -1;
-      if (!a.isFeatured && b.isFeatured) return 1;
-      return 0;
-    
-    case 'teacher':
-      if (a.createdByRole === 'teacher' && b.createdByRole !== 'teacher') return -1;
-      if (a.createdByRole !== 'teacher' && b.createdByRole === 'teacher') return 1;
-      return 0;
-    
-    default:
-      return 0;
-  }
+    result.sort((a, b) => {
+      // Ensure we have default values for sorting
+      const aEnrolled = a.enrolledStudents || 0;
+      const bEnrolled = b.enrolledStudents || 0;
+      const aRating = a.rating || 0;
+      const bRating = b.rating || 0;
+      const aPrice = a.price || 0;
+      const bPrice = b.price || 0;
+      const aDate = a.createdAt ? new Date(a.createdAt) : new Date(0);
+      const bDate = b.createdAt ? new Date(b.createdAt) : new Date(0);
+
+      switch (sortBy) {
+        case 'popular':
+          if (a.popular && !b.popular) return -1;
+          if (!a.popular && b.popular) return 1;
+          return bEnrolled - aEnrolled;
+
+        case 'rating':
+          return bRating - aRating;
+
+        case 'price-low':
+          return aPrice - bPrice;
+
+        case 'price-high':
+          return bPrice - aPrice;
+
+        case 'newest':
+          return bDate - aDate;
+
+        case 'featured':
+          if (a.isFeatured && !b.isFeatured) return -1;
+          if (!a.isFeatured && b.isFeatured) return 1;
+          return 0;
+
+        case 'teacher':
+          if (a.createdByRole === 'teacher' && b.createdByRole !== 'teacher') return -1;
+          if (a.createdByRole !== 'teacher' && b.createdByRole === 'teacher') return 1;
+          return 0;
+
+        default:
+          return 0;
+      }
     });
-    
+
     setFilteredCourses(result);
   }, [selectedCategory, searchTerm, sortBy, courses]);
 
   const checkAuthStatus = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      const loggedIn = localStorage.getItem('isLoggedIn') === 'true';
-      const userData = localStorage.getItem('userData');
+  try {
+    const token = localStorage.getItem('token');
+    const loggedIn = localStorage.getItem('isLoggedIn') === 'true';
+    const userData = localStorage.getItem('userData');
+
+    if (token && loggedIn && userData) {
+      const parsedUser = JSON.parse(userData);
+      console.log('Auth check - parsed user:', parsedUser);
       
-      if (token && loggedIn && userData) {
-        const parsedUser = JSON.parse(userData);
-        setUser(parsedUser);
-        setIsLoggedIn(true);
-      } else {
-        setIsLoggedIn(false);
-        setUser(null);
+      // Make sure role is set
+      if (!parsedUser.role) {
+        // Try to get role from another source
+        const decodedToken = JSON.parse(atob(token.split('.')[1]));
+        parsedUser.role = decodedToken.role || 'student';
+        localStorage.setItem('userData', JSON.stringify(parsedUser));
       }
-    } catch (error) {
-      console.error('Error checking auth status:', error);
+      
+      setUser(parsedUser);
+      setIsLoggedIn(true);
+    } else {
       setIsLoggedIn(false);
       setUser(null);
     }
-  };
+  } catch (error) {
+    console.error('Error checking auth status:', error);
+    setIsLoggedIn(false);
+    setUser(null);
+  }
+};
 
   const isAuthorizedStudent = () => {
     return isLoggedIn && user?.role === 'student';
@@ -213,20 +271,20 @@ result.sort((a, b) => {
       navigate('/login');
       return;
     }
-    
+
     if (!isAuthorizedStudent()) {
       alert(`Enrollment is only available for students. Your current role is ${user?.role}.`);
       return;
     }
-    
-    navigate('/personal-form', { 
-      state: { 
+
+    navigate('/personal-form', {
+      state: {
         course: course,
         courseTrack: course.title,
         coursePrice: course.price,
         courseId: course.id,
         courseType: 'created'
-      } 
+      }
     });
   };
 
@@ -238,7 +296,7 @@ result.sort((a, b) => {
 
   const getButtonStyles = () => {
     const baseStyles = "w-full py-3 rounded-xl font-semibold transition-all duration-300 transform shadow-lg ";
-    
+
     if (isAuthorizedStudent()) {
       return baseStyles + "bg-gradient-to-r from-cyan-500 to-blue-600 text-white hover:from-cyan-600 hover:to-blue-700 hover:scale-105 shadow-cyan-500/25";
     } else {
@@ -300,7 +358,7 @@ result.sort((a, b) => {
   return (
     <div className="min-h-screen bg-white py-12">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        
+
         {/* Header Section */}
         <div className="text-center mb-12">
           <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
@@ -309,7 +367,7 @@ result.sort((a, b) => {
           <p className="text-xl text-gray-600 max-w-3xl mx-auto">
             Explore courses created by administrators and teachers. Learn from the best resources available.
           </p>
-          
+
           {/* Stats */}
           <div className="mt-6 flex flex-wrap justify-center gap-4">
             <div className="px-4 py-2 bg-blue-50 rounded-full">
@@ -347,7 +405,7 @@ result.sort((a, b) => {
         {/* Filters and Search */}
         <div className="hover:shadow-2xl hover:shadow-neutral-500 bg-gradient-to-r from-neutral-200/50 to-gray-200/50 rounded-2xl shadow-xl border border-black p-6 mb-8">
           <div className="flex flex-col lg:flex-row gap-6 items-center justify-between">
-            
+
             {/* Search Bar */}
             <div className="flex-1 w-full lg:max-w-md">
               <div className="relative">
@@ -399,7 +457,7 @@ result.sort((a, b) => {
         {/* Courses Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {filteredCourses.map(course => (
-            <CourseCard 
+            <CourseCard
               key={course.id}
               course={course}
               isAuthorizedStudent={isAuthorizedStudent}
@@ -418,7 +476,7 @@ result.sort((a, b) => {
             <div className="text-gray-400 text-6xl mb-4">📚</div>
             <h3 className="text-xl font-semibold text-gray-900 mb-2">No courses found</h3>
             <p className="text-gray-600 mb-6">
-              {searchTerm || selectedCategory !== 'All' 
+              {searchTerm || selectedCategory !== 'All'
                 ? 'Try adjusting your search or filter criteria'
                 : 'No courses available yet. Check back soon!'}
             </p>
@@ -456,14 +514,14 @@ result.sort((a, b) => {
 };
 
 // Separate Course Card Component for better organization
-const CourseCard = ({ 
-  course, 
-  isAuthorizedStudent, 
-  getButtonText, 
-  getButtonStyles, 
-  handleEnrollClick, 
+const CourseCard = ({
+  course,
+  isAuthorizedStudent,
+  getButtonText,
+  getButtonStyles,
+  handleEnrollClick,
   formatDate,
-  isLoggedIn 
+  isLoggedIn
 }) => {
   // Add safe defaults
   const enrolledStudents = course.enrolledStudents || 0;
@@ -472,10 +530,10 @@ const CourseCard = ({
   const courseFeatures = course.features || [];
   const courseCategory = course.category || 'General';
   const courseStatus = course.status || 'published';
-  
+
   return (
     <div className="bg-neutral-200 rounded-2xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-xl transition-all duration-300 transform hover:-translate-y-2 group relative">
-      
+
       {/* Course Image */}
       <div className="relative overflow-hidden">
         <img
@@ -487,7 +545,7 @@ const CourseCard = ({
             e.target.src = '/default-course.jpg';
           }}
         />
-        
+
         {/* Course Badges */}
         <div className="absolute top-4 left-4 flex flex-col gap-2">
           {course.createdByRole === 'teacher' && (
@@ -509,19 +567,19 @@ const CourseCard = ({
             </div>
           )}
         </div>
-        
+
         {/* Price Badge */}
         <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm rounded-lg px-3 py-1 text-sm font-semibold text-gray-900">
           {course.price === 0 ? 'FREE' : `₹${course.price}`}
         </div>
-        
+
         {/* Level Badge */}
         {course.level && (
           <div className="absolute bottom-4 left-4 bg-black/70 text-white px-3 py-1 rounded-full text-xs font-medium">
             {course.level}
           </div>
         )}
-        
+
         {/* Overlay for non-student users */}
         {!isAuthorizedStudent() && (
           <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
@@ -606,7 +664,7 @@ const CourseCard = ({
         )}
 
         {/* CTA Button */}
-        <button 
+        <button
           onClick={() => handleEnrollClick(course)}
           className={getButtonStyles()}
           disabled={!isAuthorizedStudent()}
@@ -619,14 +677,13 @@ const CourseCard = ({
 
         {/* Course Status and Helper Text */}
         <div className="mt-3 flex items-center justify-between">
-          <span className={`text-xs font-medium px-2 py-1 rounded ${
-            courseStatus === 'published' 
+          <span className={`text-xs font-medium px-2 py-1 rounded ${courseStatus === 'published'
               ? 'bg-green-100 text-green-800'
               : 'bg-yellow-100 text-yellow-800'
-          }`}>
+            }`}>
             {courseStatus}
           </span>
-          
+
           {!isAuthorizedStudent() && isLoggedIn && (
             <p className="text-xs text-gray-500">
               Switch to student account to enroll
