@@ -42,7 +42,6 @@ import {
 import { useNavigate } from 'react-router-dom';
 import AddQuizForm from '../../forms/Addquizform';
 import AddAssignmentForm from '../../forms/assignmentForm';
-import AssignmentView from '../assignment/assignmentView';
 
 const Quiz = () => {
   const [isAuthorized, setIsAuthorized] = useState(false);
@@ -641,7 +640,6 @@ const Quiz = () => {
 />
         )}
       </AnimatePresence>
-      <AssignmentView/>
     </div>
   );
 };

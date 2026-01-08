@@ -53,7 +53,7 @@ const NewCourses = () => {
 
     if (userRole === 'teacher') {
       // Teacher fetches their own courses
-      endpoint = 'http://localhost:3000/api/teacher/courses';
+      endpoint = 'https://edulearnbackend-ffiv.onrender.com/api/teacher/courses';
       if (token) {
         headers = {
           'Authorization': `Bearer ${token}`
@@ -61,7 +61,7 @@ const NewCourses = () => {
       }
     } else if (userRole === 'student') {
       // Student fetches published courses - FIXED ENDPOINT
-      endpoint = 'http://localhost:3000/api/student/courses';
+      endpoint = 'https://edulearnbackend-ffiv.onrender.com/api/student/courses';
       if (token) {
         headers = {
           'Authorization': `Bearer ${token}`
@@ -69,7 +69,7 @@ const NewCourses = () => {
       }
     } else {
       // Public access (no auth needed) - also use student endpoint
-      endpoint = 'http://localhost:3000/api/student/courses';
+      endpoint = 'https://edulearnbackend-ffiv.onrender.com/api/student/courses';
       headers = {}; // No auth header
     }
 

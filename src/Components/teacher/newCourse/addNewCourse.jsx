@@ -231,7 +231,7 @@ const AddNewCourse = ({ onClose, onSuccess }) => {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:3000/api/teacher/courses', {
+      const response = await fetch('https://edulearnbackend-ffiv.onrender.com/api/teacher/courses', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
