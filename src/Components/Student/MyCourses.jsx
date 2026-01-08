@@ -567,21 +567,77 @@ const CourseMaterials = ({ course, materials, selectedMaterialType, onMaterialTy
 };
 
 // Material Card Component
+// Material Card Component - FIXED VERSION
 const MaterialCard = ({ material }) => {
   const isVideo = material.type === 'video' || material.video_url;
   const isDocument = material.type === 'document' || material.file_url;
 
-  const handleView = () => {
-    const url = isVideo ? material.video_url : material.file_url;
-    window.open(` http://localhost:3000${url}`, '_blank');
+  const getFullUrl = (url) => {
+    // If the URL is already absolute, return it as-is
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      return url;
+    }
+    
+    // If it's a relative path starting with '/', append to backend URL
+    if (url.startsWith('/')) {
+      return `https://edulearnbackend-ffiv.onrender.com${url}`;
+    }
+    
+    // If it's a relative path without leading '/', add it
+    return `https://edulearnbackend-ffiv.onrender.com/${url}`;
   };
 
-  const handleDownload = () => {
+  const handleView = () => {
     const url = isVideo ? material.video_url : material.file_url;
-    const link = document.createElement('a');
-    link.href = ` http://localhost:3000${url}`;
-    link.download = material.title;
-    link.click();
+    if (!url) {
+      alert('No URL available for this material');
+      return;
+    }
+    window.open(getFullUrl(url), '_blank');
+  };
+
+  const handleDownload = async () => {
+    const url = isVideo ? material.video_url : material.file_url;
+    if (!url) {
+      alert('No URL available for download');
+      return;
+    }
+
+    try {
+      const fullUrl = getFullUrl(url);
+      const token = localStorage.getItem('token');
+      
+      // Fetch the file with authentication
+      const response = await fetch(fullUrl, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to download file');
+      }
+
+      // Get the blob from response
+      const blob = await response.blob();
+      
+      // Create download link
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = material.title || 'download';
+      
+      // Trigger download
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // Clean up
+      window.URL.revokeObjectURL(downloadUrl);
+    } catch (error) {
+      console.error('Download error:', error);
+      alert('Failed to download file. Please try again.');
+    }
   };
 
   const formatDate = (dateString) => {

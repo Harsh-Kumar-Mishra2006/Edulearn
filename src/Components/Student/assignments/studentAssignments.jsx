@@ -780,7 +780,7 @@ const AssignmentCard = ({ assignment, index, onStart }) => {
           </div>
           {assignment.current_submission && (
             <div className="flex items-center gap-1">
-              <TrophyIcon className="w-4 h-4 text-yellow-300" />
+              <Trophy className="w-4 h-4 text-yellow-300" />
               <span className="text-sm font-semibold text-yellow-300">
                 {assignment.current_submission.score?.percentage || 0}%
               </span>

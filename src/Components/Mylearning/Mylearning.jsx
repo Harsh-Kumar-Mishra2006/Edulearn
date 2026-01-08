@@ -68,7 +68,7 @@ const MyLearning = () => {
   const fetchLearningProgress = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(' http://localhost:3000/api/my-learning/progress', {
+      const response = await fetch(' https://edulearnbackend-ffiv.onrender.com/api/my-learning/progress', {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -92,7 +92,7 @@ const MyLearning = () => {
   const markAsCompleted = async (category, materialType, materialId) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(` http://localhost:3000/api/my-learning/progress/${category}/${materialType}/${materialId}`, {
+      const response = await fetch(`https://edulearnbackend-ffiv.onrender.com/api/my-learning/progress/${category}/${materialType}/${materialId}`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -118,7 +118,7 @@ const MyLearning = () => {
       // Use the full URL from backend
       const fileUrl = document.file_url.startsWith('http') 
         ? document.file_url 
-        : ` http://localhost:3000${document.file_url}`;
+        : ` https://edulearnbackend-ffiv.onrender.com${document.file_url}`;
       
       const response = await fetch(fileUrl, {
         headers: {
@@ -146,7 +146,7 @@ const MyLearning = () => {
       // Fallback to opening in new tab
       const fileUrl = document.file_url.startsWith('http') 
         ? document.file_url 
-        : ` http://localhost:3000${document.file_url}`;
+        : ` https://edulearnbackend-ffiv.onrender.com${document.file_url}`;
       window.open(fileUrl, '_blank');
     }
   };
@@ -473,7 +473,7 @@ const MyLearning = () => {
                                 onClick={() => {
                                   const videoUrl = video.video_url?.startsWith('http') 
                                     ? video.video_url 
-                                    : ` http://localhost:3000${video.video_url}`;
+                                    : ` https://edulearnbackend-ffiv.onrender.com/api${video.video_url}`;
                                   window.open(videoUrl, '_blank');
                                 }}
                                 className="flex-1 bg-blue-600 text-white py-2 px-3 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
