@@ -229,49 +229,54 @@ const AddNewCourse = ({ onClose, onSuccess }) => {
 
     setLoading(true);
 
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('https://edulearnbackend-ffiv.onrender.com/api/teacher/courses', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        },
-        body: formDataToSend
-      });
-
-      const result = await response.json();
+  try {
+    const token = localStorage.getItem('token');
+    
+    console.log('📤 Sending to:', 'https://edulearnbackend-ffiv.onrender.com/api/teacher/courses');
+    
+    const response = await fetch('https://edulearnbackend-ffiv.onrender.com/api/teacher/courses', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      },
+      body: formDataToSend
+    });
+    // Check if response is JSON or HTML
+    const contentType = response.headers.get('content-type');
+    
+    if (!contentType || !contentType.includes('application/json')) {
+      // It's HTML - likely a 404/500 error page
+      const text = await response.text();
+      console.error('❌ Server returned HTML (not JSON):', text.substring(0, 200));
       
-      if (!result.success) {
-        setError(result.error || result.message || 'Failed to create course');
-      } else {
-        // Success - reset form and close
-        setFormData({
-          title: '',
-          description: '',
-          duration: '',
-          level: 'Beginner',
-          price: '',
-          category: 'Development',
-          features: [],
-          popular: false,
-          isFree: false,
-          discountPrice: '',
-          prerequisites: [],
-          learningOutcomes: [],
-          metaTitle: '',
-          metaDescription: '',
-          isFeatured: false
-        });
-        setImage(null);
-        setImagePreview(null);
-        onSuccess();
+      // Try to extract error from HTML or show generic message
+      let errorMsg = `Server error (${response.status})`;
+      if (text.includes('<title>')) {
+        const match = text.match(/<title>(.*?)<\/title>/);
+        if (match) errorMsg = match[1];
       }
-    } catch (err) {
-      console.error('Error creating course:', err);
-      setError('Failed to create course. Please try again.');
-    } finally {
-      setLoading(false);
+      
+      setError(`Failed to create course: ${errorMsg}`);
+      return;
     }
+
+    const result = await response.json();
+    
+    if (!result.success) {
+      setError(result.error || result.message || 'Failed to create course');
+    } else {
+      // Success
+      setFormData({ /* reset form */ });
+      setImage(null);
+      setImagePreview(null);
+      onSuccess();
+    }
+  } catch (err) {
+    console.error('❌ Error creating course:', err);
+    setError(`Failed to create course: ${err.message}`);
+  } finally {
+    setLoading(false);
+  }
   };
 
   return (
@@ -545,25 +550,26 @@ const AddNewCourse = ({ onClose, onSuccess }) => {
                     </button>
                   </div>
                   
-                  {formData.features.length > 0 && (
-                    <div className="flex flex-wrap gap-2">
-                      {formData.features.map((feature, index) => (
-                        <span
-                          key={index}
-                          className="inline-flex items-center gap-1 bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-sm"
-                        >
-                          {feature}
-                          <button
-                            type="button"
-                            onClick={() => removeFeature(index)}
-                            className="text-emerald-500 hover:text-emerald-700"
-                          >
-                            ×
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                  )}
+                  {/* Add ?. to safely check if features exists */}
+{formData.features?.length > 0 && (
+  <div className="flex flex-wrap gap-2">
+    {formData.features.map((feature, index) => (
+      <span
+        key={index}
+        className="inline-flex items-center gap-1 bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-sm"
+      >
+        {feature}
+        <button
+          type="button"
+          onClick={() => removeFeature(index)}
+          className="text-emerald-500 hover:text-emerald-700"
+        >
+          ×
+        </button>
+      </span>
+    ))}
+  </div>
+)}
                 </div>
               </div>
 

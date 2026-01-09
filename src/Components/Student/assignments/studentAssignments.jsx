@@ -443,19 +443,21 @@ const StudentAssignmentView = () => {
   // If taking assignment, show assignment interface
   if (isTakingAssignment && currentAssignmentData) {
     return (
-      <AssignmentInterface
-        assignment={currentAssignmentData}
-        answers={answers}
-        onAnswerSelect={handleAnswerSelect}
-        timeRemaining={timeRemaining}
-        progress={calculateProgress(currentAssignmentData)}
-        onExit={exitAssignment}
-        onSubmit={submitAssignment}
-        submitting={submitting}
-        showResults={showResults}
-        results={results}
-        streak={streak}
-      />
+      // In StudentAssignmentView, where you render AssignmentInterface:
+<AssignmentInterface
+  assignment={currentAssignmentData}
+  answers={answers}
+  onAnswerSelect={handleAnswerSelect}
+  timeRemaining={timeRemaining}
+  progress={calculateProgress(currentAssignmentData)}
+  onExit={exitAssignment}
+  onSubmit={submitAssignment}
+  submitting={submitting}
+  showResults={showResults}
+  results={results}
+  streak={streak}
+  formatTime={formatTime} // Add this line
+/>
     );
   }
 
@@ -823,7 +825,7 @@ const AssignmentCard = ({ assignment, index, onStart }) => {
 };
 
 // Assignment Interface Component
-const AssignmentInterface = ({ assignment, answers, onAnswerSelect, timeRemaining, progress, onExit, onSubmit, submitting, showResults, results, streak }) => {
+const AssignmentInterface = ({ assignment, answers, onAnswerSelect, timeRemaining, progress, onExit, onSubmit, submitting, showResults, results, streak,formatTime}) => {
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [reviewMode, setReviewMode] = useState(false);
 
