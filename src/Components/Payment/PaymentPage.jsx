@@ -1,5 +1,5 @@
 // components/PaymentPage.jsx
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLocation } from 'react-router-dom';
 import { 
@@ -12,24 +12,139 @@ import {
   BookOpen,
   RotateCcw,
   CreditCard,
-  Sparkles
+  Sparkles,
+  AlertCircle
 } from 'lucide-react';
 import axios from 'axios';
 import CourseSummary from '../Student/course/courseSummary';
 
 const PaymentPage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const fileInputRef = useRef(null);
-  const [selectedFile, setSelectedFile] = useState(null); // ✅ Store the file separately
+  
+  // State variables
+  const [selectedFile, setSelectedFile] = useState(null);
   const [uploadedImage, setUploadedImage] = useState(null);
   const [uploadStatus, setUploadStatus] = useState('idle');
   const [isUploaded, setIsUploaded] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [courseData, setCourseData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   const qrCodeImage = "/QR.jpg";
-  const location = useLocation();
-  const { course } = location.state || {};// Get course from navigation state
+
+  // Fetch course data on component mount
+  useEffect(() => {
+    const fetchCourseData = () => {
+      try {
+        console.log('🟡 Location state:', location.state);
+        
+        // Method 1: Check location state
+        if (location.state?.course) {
+          console.log('✅ Course found in location state:', location.state.course);
+          setCourseData(location.state.course);
+          setLoading(false);
+          return;
+        }
+        
+        // Method 2: Check localStorage as fallback
+        const storedCourse = localStorage.getItem('selectedCourse');
+        if (storedCourse) {
+          try {
+            const parsedCourse = JSON.parse(storedCourse);
+            console.log('✅ Course found in localStorage:', parsedCourse);
+            setCourseData(parsedCourse);
+            setLoading(false);
+            return;
+          } catch (e) {
+            console.error('Error parsing stored course:', e);
+          }
+        }
+        
+        // No course data found
+        console.error('❌ No course data found');
+        setError('Course information is missing. Please select a course again.');
+        setLoading(false);
+        
+      } catch (error) {
+        console.error('❌ Error fetching course data:', error);
+        setError('Failed to load course information');
+        setLoading(false);
+      }
+    };
+
+    fetchCourseData();
+  }, [location]);
+
+  // Function to check if course is in hardcoded list
+  const isHardcodedCourse = (courseTitle) => {
+    const hardcodedCourses = [
+      'Web Development',
+      'Microsoft Office',
+      'Mobile App Development',
+      'UI/UX Design',
+      'Digital Marketing',
+      'Graphic Design'
+    ];
+    return hardcodedCourses.includes(courseTitle);
+  };
+
+  // Function to get course details from backend
+  const verifyCourseWithBackend = async (courseTitle) => {
+    try {
+      console.log('🔍 Verifying course with backend:', courseTitle);
+      
+      // Try the new endpoint first
+      const response = await axios.get(
+        `https://edulearnbackend-ffiv.onrender.com/api/payment/course-details/${encodeURIComponent(courseTitle)}`
+      );
+      
+      if (response.data.success) {
+        console.log('✅ Course verified via new endpoint');
+        return {
+          verified: true,
+          data: response.data.course
+        };
+      }
+    } catch (error) {
+      console.log('🟡 New endpoint failed, trying fallback...');
+      
+      // Fallback: Try to check if it's a hardcoded course
+      if (isHardcodedCourse(courseTitle)) {
+        console.log('✅ Course is in hardcoded list');
+        return {
+          verified: true,
+          data: null // Will use frontend data
+        };
+      }
+      
+      // Last resort: Check available courses endpoint
+      try {
+        const availableResponse = await axios.get(
+          'https://edulearnbackend-ffiv.onrender.com/api/payment/available-courses'
+        );
+        
+        if (availableResponse.data.success) {
+          const allCourses = availableResponse.data.courses || [];
+          const courseExists = allCourses.some(course => 
+            course.title.toLowerCase() === courseTitle.toLowerCase()
+          );
+          
+          if (courseExists) {
+            console.log('✅ Course found in available courses');
+            return { verified: true, data: null };
+          }
+        }
+      } catch (e) {
+        console.error('Fallback verification failed:', e);
+      }
+    }
+    
+    return { verified: false, data: null };
+  };
 
   const handleFileUpload = (event) => {
     const file = event.target.files[0];
@@ -45,12 +160,9 @@ const PaymentPage = () => {
       return;
     }
 
-    setSelectedFile(file); // ✅ Store the file
+    setSelectedFile(file);
     setUploadStatus('uploading');
-     const courseTrack = course?.title || "Web Development";
-  const courseAmount = course?.price || 499;
 
-    // Simulate upload process
     setTimeout(() => {
       const reader = new FileReader();
       reader.onload = (e) => {
@@ -63,7 +175,7 @@ const PaymentPage = () => {
   };
 
   const handleRemoveImage = () => {
-    setSelectedFile(null); // ✅ Clear the stored file
+    setSelectedFile(null);
     setUploadedImage(null);
     setUploadStatus('idle');
     setIsUploaded(false);
@@ -81,8 +193,16 @@ const PaymentPage = () => {
     document.body.removeChild(link);
   };
 
-  // In handleConfirmEnrollment function in PaymentPage.jsx
+// In your PaymentPage.jsx, replace the handleConfirmEnrollment function with this:
+
 const handleConfirmEnrollment = async () => {
+  // Validation checks
+  if (!courseData) {
+    alert('Course information is missing. Please go back and select a course again.');
+    navigate('/courses');
+    return;
+  }
+
   if (!isUploaded || !selectedFile) {
     alert('Please upload payment screenshot first');
     return;
@@ -91,9 +211,9 @@ const handleConfirmEnrollment = async () => {
   setProcessing(true);
 
   try {
-    // Get student email from cookie
-    const cookies = document.cookie.split(';');
+    // Get student email
     let studentEmail = '';
+    const cookies = document.cookie.split(';');
     for (let cookie of cookies) {
       const [name, value] = cookie.trim().split('=');
       if (name === 'student_email') {
@@ -101,63 +221,152 @@ const handleConfirmEnrollment = async () => {
         break;
       }
     }
+    
+    if (!studentEmail && location.state?.email) {
+      studentEmail = location.state.email;
+    }
 
     if (!studentEmail) {
-      alert('Please complete the registration process first');
-      navigate('/personal-form');
+      const emailInput = prompt('Please enter your email address for enrollment:');
+      if (!emailInput) {
+        setProcessing(false);
+        return;
+      }
+      studentEmail = emailInput;
+    }
+
+    // CRITICAL: Map new courses to hardcoded course names
+    const mapCourseToHardcoded = (courseTitle) => {
+      const mapping = {
+        // Map new courses to existing hardcoded courses
+        'Photopea Course': 'Graphic Design',
+        'Social Media Handling': 'Digital Marketing',
+        'Data Science': 'Web Development',
+        'Business Analytics': 'Microsoft Office',
+        'Python Programming': 'Web Development',
+        'React JS': 'Web Development',
+        'Photoshop': 'Graphic Design',
+        'Video Editing': 'UI/UX Design'
+      };
+      
+      return mapping[courseTitle] || courseTitle;
+    };
+
+    const mappedCourseTitle = mapCourseToHardcoded(courseData.title);
+    
+    console.log('🟡 Original course:', courseData.title);
+    console.log('🟡 Mapped course for backend:', mappedCourseTitle);
+
+    // Check if the mapped course is in hardcoded list
+    const hardcodedCourses = [
+      'Web Development',
+      'Microsoft Office', 
+      'Mobile App Development',
+      'UI/UX Design',
+      'Digital Marketing',
+      'Graphic Design'
+    ];
+
+    if (!hardcodedCourses.includes(mappedCourseTitle)) {
+      alert(`This course "${courseData.title}" cannot be enrolled online yet. Please contact admin for manual enrollment.`);
+      setProcessing(false);
       return;
     }
 
-    // Get course from state (passed through navigation)
-    const course = location.state?.course;
-    if (!course) {
-      alert('Course information missing. Please go back and select a course again.');
-      navigate('/courses');
-      return;
-    }
-
-    // Create FormData to send the image
+    // Create FormData
     const formData = new FormData();
     formData.append('screenshot', selectedFile);
     formData.append('student_email', studentEmail);
-    formData.append('course_track', course.title);  // Use course.title
-    formData.append('amount', course.price.toString());  // Use course.price
+    formData.append('course_track', mappedCourseTitle);  // Use MAPPED title
+    formData.append('amount', courseData.price.toString());
 
-    console.log('🟡 Sending payment data to backend...');
-    console.log('🟡 Course:', course.title);
-    console.log('🟡 Price:', course.price);
-    console.log('🟡 Email:', studentEmail);
-
-    const response = await axios.post('https://edulearnbackend-ffiv.onrender.com/api/payment/process', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data'
-      }
+    console.log('🟡 Sending payment data:', {
+      originalCourse: courseData.title,
+      mappedCourse: mappedCourseTitle,
+      price: courseData.price,
+      email: studentEmail
     });
+
+    // Make API call
+    const response = await axios.post(
+      'https://edulearnbackend-ffiv.onrender.com/api/payment/process',
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        },
+        timeout: 30000
+      }
+    );
 
     console.log('🟢 Payment response:', response.data);
 
     if (response.data.success) {
+      // IMPORTANT: Also create a custom enrollment record for the actual course
+      try {
+        // Store actual enrollment info in localStorage
+        const actualEnrollment = {
+          actualCourse: courseData.title,
+          actualCourseId: courseData.id,
+          mappedCourse: mappedCourseTitle,
+          enrollmentDate: new Date().toISOString(),
+          paymentId: response.data.payment_id,
+          enrollmentId: response.data.enrollment_id,
+          pricePaid: courseData.price,
+          studentEmail: studentEmail,
+          status: 'enrolled_temporary'
+        };
+        
+        // Save to localStorage
+        const existingEnrollments = JSON.parse(localStorage.getItem('manualEnrollments') || '[]');
+        existingEnrollments.push(actualEnrollment);
+        localStorage.setItem('manualEnrollments', JSON.stringify(existingEnrollments));
+        
+        console.log('✅ Saved actual enrollment info:', actualEnrollment);
+      } catch (storageError) {
+        console.error('Error saving enrollment info:', storageError);
+      }
+
+      // Show success
       setShowSuccess(true);
-      // Auto navigate after 3 seconds
+      
+      // Store for dashboard
+      localStorage.setItem('recentEnrollment', JSON.stringify({
+        courseTitle: courseData.title,
+        enrollmentDate: new Date().toISOString(),
+        paymentId: response.data.payment_id,
+        enrollmentId: response.data.enrollment_id
+      }));
+      
+      // Auto navigate
       setTimeout(() => {
         navigate('/dashboard');
       }, 3000);
+    } else {
+      alert(`Payment failed: ${response.data.error || 'Unknown error'}`);
     }
+    
   } catch (error) {
     console.error('🔴 Error processing payment:', error);
+    
+    let errorMessage = 'An error occurred while processing payment';
+    
     if (error.response) {
-      alert(`Error: ${error.response.data.error || 'Server error'}`);
+      errorMessage = error.response.data.error || `Server error: ${error.response.status}`;
     } else if (error.request) {
-      alert('Network error: Could not connect to server.');
+      errorMessage = 'Network error: Could not connect to server.';
     } else {
-      alert('Error: ' + error.message);
+      errorMessage = error.message;
     }
+    
+    alert(`Error: ${errorMessage}`);
+    
   } finally {
     setProcessing(false);
   }
 };
 
-  // Animation Components
+  // Animation Components (keep the same as before)
   const UploadAnimation = () => (
     <div className="flex flex-col items-center justify-center py-8">
       <div className="relative">
@@ -187,14 +396,16 @@ const handleConfirmEnrollment = async () => {
           <Sparkles className="absolute -top-2 -right-2 h-8 w-8 text-yellow-500 animate-pulse" />
         </div>
         <h3 className="text-2xl font-bold text-gray-900 mb-2">Payment Successful!</h3>
-        <p className="text-gray-600 mb-6">
-          Your payment has been verified successfully. You are now enrolled in the course!
+        <p className="text-gray-600 mb-4">
+          You are now enrolled in:
         </p>
-        <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
-          <p className="text-green-700 text-sm">
-            Redirecting to dashboard in 3 seconds...
-          </p>
+        <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4">
+          <p className="text-green-800 font-semibold">{courseData?.title}</p>
+          <p className="text-green-700 text-sm">₹{courseData?.price}</p>
         </div>
+        <p className="text-gray-600 mb-6">
+          Redirecting to dashboard in 3 seconds...
+        </p>
         <button
           onClick={() => navigate('/dashboard')}
           className="w-full bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition-colors"
@@ -205,20 +416,60 @@ const handleConfirmEnrollment = async () => {
     </div>
   );
 
+  // Loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 to-indigo-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading course information...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error || !courseData) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 to-indigo-100 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl p-8 max-w-md w-full text-center">
+          <AlertCircle className="h-16 w-16 text-red-500 mx-auto mb-4" />
+          <h3 className="text-xl font-bold text-gray-900 mb-2">Course Information Missing</h3>
+          <p className="text-gray-600 mb-6">{error || 'Please select a course to continue'}</p>
+          <div className="space-y-3">
+            <button
+              onClick={() => navigate('/courses')}
+              className="w-full bg-purple-600 text-white py-3 rounded-lg font-semibold hover:bg-purple-700 transition-colors"
+            >
+              Browse Courses
+            </button>
+            <button
+              onClick={() => navigate(-1)}
+              className="w-full bg-gray-200 text-gray-700 py-3 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
+            >
+              Go Back
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-indigo-100 py-8">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-        <CourseSummary course={course} />
+        {/* Course Summary */}
+        {courseData && <CourseSummary course={courseData} />}
         
         {/* Header */}
         <div className="bg-white rounded-2xl shadow-lg p-6 mb-8">
           <div className="flex items-center justify-between mb-6">
             <button
-              onClick={() => navigate('/course-form')}
+              onClick={() => navigate(-1)}
               className="flex items-center text-gray-600 hover:text-gray-900 transition-colors"
             >
               <ArrowLeft className="h-5 w-5 mr-2" />
-              Back to Course Details
+              Back
             </button>
             <h1 className="text-3xl font-bold text-gray-900">Complete Your Enrollment</h1>
             <div className="w-28"></div>
@@ -226,8 +477,17 @@ const handleConfirmEnrollment = async () => {
 
           <div className="text-center">
             <p className="text-gray-600 text-lg">
-              Scan the QR code to pay and upload your payment confirmation for the course 
+              Scan the QR code to pay and upload your payment confirmation
             </p>
+            <div className="mt-4 inline-flex items-center bg-blue-50 px-4 py-2 rounded-full">
+              <span className="text-blue-700 font-semibold">
+                Course: {courseData.title} • ₹{courseData.price}
+              </span>
+            </div>
+            <div className="mt-2 text-sm text-gray-500">
+              {isHardcodedCourse(courseData.title) ? 
+                'Original Course' : 'Newly Added Course'}
+            </div>
           </div>
         </div>
 
@@ -240,11 +500,11 @@ const handleConfirmEnrollment = async () => {
                 <QrCode className="h-8 w-8 text-purple-600 mr-3" />
                 <h2 className="text-2xl font-bold text-gray-900">Scan to Pay</h2>
               </div>
-              <div className="bg-gradient to-r from-purple-100 to-pink-100 rounded-lg p-4 mb-4">
+              <div className="bg-gradient-to-r from-purple-100 to-pink-100 rounded-lg p-4 mb-4">
                 <p className="text-gray-700">
-                  Amount: <span className="font-bold text-2xl text-green-600"></span>
+                  Amount: <span className="font-bold text-2xl text-green-600">₹{courseData.price}</span>
                 </p>
-                <p className="text-gray-500 text-sm mt-1">One-time payment</p>
+                <p className="text-gray-500 text-sm mt-1">One-time payment for course enrollment</p>
               </div>
             </div>
 
@@ -256,6 +516,7 @@ const handleConfirmEnrollment = async () => {
                   alt="Payment QR Code"
                   className="w-full max-w-xs mx-auto aspect-square object-contain"
                   onError={(e) => {
+                    e.target.onerror = null;
                     e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDIwMCAyMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iMjAwIiBmaWxsPSIjRjNGNEY2Ii8+Cjx0ZXh0IHg9IjEwMCIgeT0iMTAwIiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTQiIGZpbGw9IiA2QjcyODAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGRvbWluYW50LWJhc2VsaW5lPSJtaWRkbGUiPlFSIENvZGUgSW1hZ2U8L3RleHQ+Cjwvc3ZnPgo=';
                   }}
                 />
@@ -290,7 +551,7 @@ const handleConfirmEnrollment = async () => {
                 </li>
                 <li className="flex items-start">
                   <span className="text-blue-600 mr-2">3.</span>
-                  Pay the amount of course
+                  Pay <strong>₹{courseData.price}</strong> for the course
                 </li>
                 <li className="flex items-start">
                   <span className="text-blue-600 mr-2">4.</span>
@@ -372,21 +633,42 @@ const handleConfirmEnrollment = async () => {
               )}
             </div>
 
+            {/* Course Status Info */}
+            <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+              <p className="text-gray-700 text-sm">
+                <strong>Course:</strong> {courseData.title}
+              </p>
+              <p className="text-gray-700 text-sm">
+                <strong>Amount:</strong> ₹{courseData.price}
+              </p>
+              <p className="text-gray-700 text-sm">
+                <strong>Status:</strong> {
+                  isHardcodedCourse(courseData.title) ? 
+                  'Available for enrollment' : 
+                  'New course - enrollment pending verification'
+                }
+              </p>
+            </div>
+
             {/* Confirm Enrollment Button */}
             <button
               onClick={handleConfirmEnrollment}
-              disabled={!isUploaded || processing}
+              disabled={!isUploaded || processing || !courseData}
               className="w-full mt-8 py-4 px-6 rounded-xl font-semibold transition-all duration-300 flex items-center justify-center space-x-3 disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700 transform hover:scale-105 shadow-lg shadow-green-500/25"
             >
               {processing ? (
                 <>
                   <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  <span>Processing...</span>
+                  <span>Processing Enrollment...</span>
                 </>
               ) : (
                 <>
                   <BookOpen className="h-6 w-6" />
-                  <span>{isUploaded ? 'Confirm Enrollment' : 'Upload Screenshot to Continue'}</span>
+                  <span>
+                    {!courseData ? 'Course Missing' : 
+                     !isUploaded ? 'Upload Screenshot to Continue' : 
+                     'Confirm Enrollment'}
+                  </span>
                 </>
               )}
             </button>
@@ -395,7 +677,17 @@ const handleConfirmEnrollment = async () => {
             {isUploaded && !processing && (
               <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
                 <p className="text-green-700 text-center font-medium">
-                  ✅ Payment proof uploaded! Click above to confirm your enrollment.
+                  ✅ Payment proof uploaded! Click above to confirm your enrollment in "{courseData.title}".
+                </p>
+              </div>
+            )}
+            
+            {/* Important Note for New Courses */}
+            {!isHardcodedCourse(courseData.title) && (
+              <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <p className="text-yellow-800 text-sm">
+                  <strong>Note:</strong> This is a newly added course. If you encounter any issues with enrollment, 
+                  please contact the admin for manual enrollment assistance.
                 </p>
               </div>
             )}

@@ -20,10 +20,14 @@ import {
   CheckCircle,
   Calendar,
   Link,
-  Users
+  Users,
+  Copy,
+  ExternalLink
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import AddNewCourse from './newCourse/addNewCourse';
+
+const API_BASE_URL = 'https://edulearnbackend-ffiv.onrender.com/api';
 
 const CreateCourse = () => {
   const [isAuthorized, setIsAuthorized] = useState(false);
@@ -42,20 +46,20 @@ const CreateCourse = () => {
   const checkAuthorization = async () => {
     try {
       const token = localStorage.getItem('token');
-    
-    // Get user from localStorage - check both possible keys
-    const userData = localStorage.getItem('user') || localStorage.getItem('userData');
-    
-    if (!token || !userData) {
-      setIsAuthorized(false);
-      setLoading(false);
-      return;
-    }
+      
+      // Get user from localStorage
+      const userData = localStorage.getItem('user') || localStorage.getItem('userData');
+      
+      if (!token || !userData) {
+        setIsAuthorized(false);
+        setLoading(false);
+        return;
+      }
 
-    const parsedUser = JSON.parse(userData);
-    setUser(parsedUser);
+      const parsedUser = JSON.parse(userData);
+      setUser(parsedUser);
 
-      const response = await fetch('https://edulearnbackend-ffiv.onrender.com/api/auth/check-teacher', {
+      const response = await fetch(`${API_BASE_URL}/auth/check-teacher`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -78,14 +82,16 @@ const CreateCourse = () => {
       setLoading(false);
     }
   };
+
   const [coursesLoading, setCoursesLoading] = useState(false);
   const [materialsLoading, setMaterialsLoading] = useState(false);
+
   // Fetch teacher's courses
   const fetchTeacherCourses = async () => {
     try {
       setCoursesLoading(true);
       const token = localStorage.getItem('token');
-      const response = await fetch('https://edulearnbackend-ffiv.onrender.com/api/course-materials/courses', {
+      const response = await fetch(`${API_BASE_URL}/course-materials/courses`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -97,12 +103,12 @@ const CreateCourse = () => {
         setCourses(data.data || []);
       }
     } catch (error) {
-    console.error('Error fetching courses:', error);
-    setCourses([]);
-  } finally {
-    setCoursesLoading(false);
-  }
-};
+      console.error('Error fetching courses:', error);
+      setCourses([]);
+    } finally {
+      setCoursesLoading(false);
+    }
+  };
 
   useEffect(() => {
     checkAuthorization();
@@ -118,29 +124,6 @@ const CreateCourse = () => {
       }
     }
   };
-  // Create a reusable fetch function with error handling
-const authFetch = async (url, options = {}) => {
-  try {
-    const token = localStorage.getItem('token');
-    const response = await fetch(`${API_BASE_URL}${url}`, {
-      ...options,
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-        ...options.headers
-      }
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-
-    return await response.json();
-  } catch (error) {
-    console.error(`API call failed for ${url}:`, error);
-    throw error;
-  }
-};
 
   const itemVariants = {
     hidden: { y: 20, opacity: 0 },
@@ -232,37 +215,37 @@ const authFetch = async (url, options = {}) => {
               <p className="text-white/80 text-sm">Create and manage courses</p>
             </motion.div>
 
-{/* Add Course to Catalog Card */}
-<motion.div 
-  className="bg-gradient-to-br from-green-600/20 to-emerald-600/20 backdrop-blur-md border border-emerald-500/30 rounded-2xl p-6 text-center cursor-pointer hover:from-green-600/30 hover:to-emerald-600/30 transition-all duration-300 group"
-  whileHover={{ scale: 1.05, y: -5 }}
-  whileTap={{ scale: 0.95 }}
-  onClick={() => setShowAddCourseForm(true)}
->
-  <div className="relative">
-    <BookOpen className="w-12 h-12 mx-auto mb-3 text-emerald-400 group-hover:text-emerald-300 transition-colors" />
-    <div className="absolute -top-1 -right-1 bg-emerald-500 rounded-full p-1">
-      <Plus className="w-4 h-4 text-white" />
-    </div>
-  </div>
-  <h3 className="text-xl font-semibold mb-2 text-white">Add to Catalog</h3>
-  <p className="text-white/80 text-sm">Create new course for all students</p>
-  <span className="inline-block mt-2 px-2 py-1 bg-emerald-500/20 text-emerald-300 text-xs rounded-full border border-emerald-500/30">
-    New Feature
-  </span>
-</motion.div>
+            {/* Add Course to Catalog Card */}
+            <motion.div 
+              className="bg-gradient-to-br from-green-600/20 to-emerald-600/20 backdrop-blur-md border border-emerald-500/30 rounded-2xl p-6 text-center cursor-pointer hover:from-green-600/30 hover:to-emerald-600/30 transition-all duration-300 group"
+              whileHover={{ scale: 1.05, y: -5 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setShowAddCourseForm(true)}
+            >
+              <div className="relative">
+                <BookOpen className="w-12 h-12 mx-auto mb-3 text-emerald-400 group-hover:text-emerald-300 transition-colors" />
+                <div className="absolute -top-1 -right-1 bg-emerald-500 rounded-full p-1">
+                  <Plus className="w-4 h-4 text-white" />
+                </div>
+              </div>
+              <h3 className="text-xl font-semibold mb-2 text-white">Add to Catalog</h3>
+              <p className="text-white/80 text-sm">Create new course for all students</p>
+              <span className="inline-block mt-2 px-2 py-1 bg-emerald-500/20 text-emerald-300 text-xs rounded-full border border-emerald-500/30">
+                New Feature
+              </span>
+            </motion.div>
 
-<AnimatePresence>
-  {showAddCourseForm && (
-    <AddNewCourse
-      onClose={() => setShowAddCourseForm(false)}
-      onSuccess={() => {
-        setShowAddCourseForm(false);
-        alert('Course added to catalog successfully! It will appear in the courses section.');
-      }}
-    />
-  )}
-</AnimatePresence>
+            <AnimatePresence>
+              {showAddCourseForm && (
+                <AddNewCourse
+                  onClose={() => setShowAddCourseForm(false)}
+                  onSuccess={() => {
+                    setShowAddCourseForm(false);
+                    alert('Course added to catalog successfully! It will appear in the courses section.');
+                  }}
+                />
+              )}
+            </AnimatePresence>
 
             {/* Upload Videos Card */}
             <motion.div 
@@ -281,8 +264,6 @@ const authFetch = async (url, options = {}) => {
               <h3 className="text-xl font-semibold mb-2">Upload Videos</h3>
               <p className="text-white/80 text-sm">Upload video lectures</p>
             </motion.div>
-
-            
 
             {/* Upload Documents Card */}
             <motion.div 
@@ -419,7 +400,7 @@ const authFetch = async (url, options = {}) => {
   );
 };
 
-// Upload Modal Component - Now supports videos, documents, and meetings
+// Upload Modal Component
 const UploadModal = ({ type, courses, onClose, onSuccess }) => {
   const [uploadData, setUploadData] = useState({
     title: '',
@@ -427,7 +408,6 @@ const UploadModal = ({ type, courses, onClose, onSuccess }) => {
     is_public: true,
     document_type: 'notes',
     course_id: courses.length > 0 ? courses[0]._id : '',
-    // Meeting specific fields
     meeting_url: '',
     meeting_type: 'other',
     scheduled_date: '',
@@ -446,7 +426,7 @@ const UploadModal = ({ type, courses, onClose, onSuccess }) => {
     if (!uploadData.title && selectedFile) {
       setUploadData(prev => ({
         ...prev,
-        title: selectedFile.name.replace(/\.[^/.]+$/, "") // Remove file extension
+        title: selectedFile.name.replace(/\.[^/.]+$/, "")
       }));
     }
   };
@@ -483,7 +463,7 @@ const UploadModal = ({ type, courses, onClose, onSuccess }) => {
 
       if (type === 'meeting') {
         // Meeting API call
-        endpoint = `https://edulearnbackend-ffiv.onrender.com/api/course-materials/courses/${uploadData.course_id}/meetings`;
+        endpoint = `${API_BASE_URL}/course-materials/courses/${uploadData.course_id}/meetings`;
         method = 'POST';
         body = JSON.stringify({
           title: uploadData.title,
@@ -496,7 +476,7 @@ const UploadModal = ({ type, courses, onClose, onSuccess }) => {
           passcode: uploadData.passcode
         });
       } else {
-        // File upload API call
+        // File upload to Cloudinary API call
         const formData = new FormData();
         formData.append(type === 'video' ? 'video' : 'document', file);
         formData.append('title', uploadData.title);
@@ -508,25 +488,30 @@ const UploadModal = ({ type, courses, onClose, onSuccess }) => {
         }
 
         endpoint = type === 'video' 
-          ? `https://edulearnbackend-ffiv.onrender.com/api/course-materials/courses/${uploadData.course_id}/videos`
-          : `https://edulearnbackend-ffiv.onrender.com/api/course-materials/courses/${uploadData.course_id}/documents`;
+          ? `${API_BASE_URL}/course-materials/courses/${uploadData.course_id}/videos`
+          : `${API_BASE_URL}/course-materials/courses/${uploadData.course_id}/documents`;
         method = 'POST';
         body = formData;
       }
 
+      const headers = {
+        'Authorization': `Bearer ${token}`
+      };
+
+      if (type === 'meeting') {
+        headers['Content-Type'] = 'application/json';
+      }
+
       const response = await fetch(endpoint, {
         method,
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          ...(type === 'meeting' && { 'Content-Type': 'application/json' })
-        },
+        headers,
         body
       });
 
       if (response.ok) {
         const successMessage = type === 'meeting' 
           ? 'Meeting scheduled successfully!' 
-          : `${type === 'video' ? 'Video' : 'Document'} uploaded successfully!`;
+          : `${type === 'video' ? 'Video' : 'Document'} uploaded to Cloudinary successfully!`;
         
         setMessage({ type: 'success', text: successMessage });
         setTimeout(() => {
@@ -545,8 +530,8 @@ const UploadModal = ({ type, courses, onClose, onSuccess }) => {
 
   const getModalTitle = () => {
     switch (type) {
-      case 'video': return 'Upload Video';
-      case 'document': return 'Upload Document';
+      case 'video': return 'Upload Video to Cloudinary';
+      case 'document': return 'Upload Document to Cloudinary';
       case 'meeting': return 'Schedule Meeting';
       default: return 'Upload';
     }
@@ -825,7 +810,7 @@ const UploadModal = ({ type, courses, onClose, onSuccess }) => {
               {uploading ? (
                 <>
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  {type === 'meeting' ? 'Scheduling...' : 'Uploading...'}
+                  {type === 'meeting' ? 'Scheduling...' : 'Uploading to Cloudinary...'}
                 </>
               ) : (
                 <>
@@ -841,7 +826,7 @@ const UploadModal = ({ type, courses, onClose, onSuccess }) => {
   );
 };
 
-// All Materials Display Component - Shows all videos, documents, and meetings from all courses
+// All Materials Display Component
 const AllMaterialsDisplay = ({ refreshTrigger, courses }) => {
   const [materials, setMaterials] = useState({ videos: [], documents: [], meetings: [] });
   const [loading, setLoading] = useState(true);
@@ -849,84 +834,145 @@ const AllMaterialsDisplay = ({ refreshTrigger, courses }) => {
   const [editingDocument, setEditingDocument] = useState(null);
   const [editingMeeting, setEditingMeeting] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
-  const [activeTab, setActiveTab] = useState('all'); // 'all', 'videos', 'documents', 'meetings'
+  const [activeTab, setActiveTab] = useState('all');
 
   // Fetch all materials by iterating through courses
   const fetchAllMaterials = async () => {
     try {
+      setLoading(true);
       const token = localStorage.getItem('token');
       const allVideos = [];
       const allDocuments = [];
       const allMeetings = [];
 
+      console.log('📦 Starting materials fetch for', courses.length, 'courses');
+
       // Fetch materials for each course
       for (const course of courses) {
         try {
-          // Fetch videos and documents
-          const materialsResponse = await fetch(`https://edulearnbackend-ffiv.onrender.com/api/course-materials/courses/${course._id}/materials`, {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json'
+          console.log(`📚 Fetching materials for course: ${course.course_title} (${course._id})`);
+
+          // Fetch videos & documents
+          const materialsResponse = await fetch(
+            `${API_BASE_URL}/course-materials/courses/${course._id}/materials`,
+            {
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+              }
             }
-          });
+          );
 
           if (materialsResponse.ok) {
             const materialsData = await materialsResponse.json();
+            console.log(`✅ Course ${course.course_title} materials response:`, materialsData);
+
+            // Process videos
             const courseVideos = (materialsData.data?.videos || []).map(video => ({
               ...video,
               course_title: course.course_title,
-              course_id: course._id
+              course_id: course._id,
+              video_url: formatCloudinaryUrl(video.video_url, 'video'),
+              isAvailable: !!video.video_url,
+              type: 'video'
             }));
+
+            // Process documents
             const courseDocuments = (materialsData.data?.documents || []).map(doc => ({
               ...doc,
               course_title: course.course_title,
-              course_id: course._id
+              course_id: course._id,
+              file_url: formatCloudinaryUrl(doc.file_url, 'raw'),
+              isAvailable: !!doc.file_url,
+              type: 'document'
             }));
 
             allVideos.push(...courseVideos);
             allDocuments.push(...courseDocuments);
+          } else {
+            console.warn(`⚠️ Failed to fetch materials for course ${course.course_title}:`, materialsResponse.status);
           }
 
           // Fetch meetings
-          const meetingsResponse = await fetch(`https://edulearnbackend-ffiv.onrender.com/api/course-materials/courses/${course._id}/meetings`, {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json'
+          const meetingsResponse = await fetch(
+            `${API_BASE_URL}/course-materials/courses/${course._id}/meetings`,
+            {
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+              }
             }
-          });
+          );
 
           if (meetingsResponse.ok) {
             const meetingsData = await meetingsResponse.json();
             const courseMeetings = (meetingsData.meetings || []).map(meeting => ({
               ...meeting,
               course_title: course.course_title,
-              course_id: course._id
+              course_id: course._id,
+              type: 'meeting'
             }));
             allMeetings.push(...courseMeetings);
+          } else {
+            console.warn(`⚠️ Failed to fetch meetings for course ${course.course_title}:`, meetingsResponse.status);
           }
+
         } catch (error) {
-          console.error(`Error fetching materials for course ${course._id}:`, error);
+          console.error(`❌ Error fetching materials for course ${course._id}:`, error);
         }
       }
+
+      console.log('📊 Materials fetch complete:', {
+        totalVideos: allVideos.length,
+        totalDocuments: allDocuments.length,
+        totalMeetings: allMeetings.length
+      });
 
       setMaterials({
         videos: allVideos,
         documents: allDocuments,
         meetings: allMeetings
       });
+
     } catch (error) {
-      console.error('Error fetching materials:', error);
+      console.error('❌ Error fetching materials:', error);
       setMaterials({ videos: [], documents: [], meetings: [] });
+      
+      // Show error toast
+      showToast('Failed to load materials. Please try again.', 'error');
     } finally {
       setLoading(false);
     }
+  };
+
+  // Helper function to format Cloudinary URLs
+  const formatCloudinaryUrl = (url, resourceType) => {
+    if (!url) return null;
+    
+    // If it's already a proper Cloudinary URL, return as-is
+    if (url.includes('res.cloudinary.com')) {
+      return url;
+    }
+    
+    // If it's an old upload URL, it won't work
+    if (url.startsWith('/uploads/')) {
+      console.warn('⚠️ Old upload URL detected:', url);
+      return null;
+    }
+    
+    // For relative URLs, make them absolute
+    if (url.startsWith('/')) {
+      return `${API_BASE_URL}${url}`;
+    }
+    
+    return url;
   };
 
   // Update video info
   const updateVideo = async (courseId, videoId, updateData) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`https://edulearnbackend-ffiv.onrender.com/api/course-materials/courses/${courseId}/videos/${videoId}`, {
+      const response = await fetch(`${API_BASE_URL}/course-materials/courses/${courseId}/videos/${videoId}`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -938,9 +984,11 @@ const AllMaterialsDisplay = ({ refreshTrigger, courses }) => {
       if (response.ok) {
         await fetchAllMaterials();
         setEditingVideo(null);
+        showToast('Video updated successfully!', 'success');
       }
     } catch (error) {
       console.error('Error updating video:', error);
+      showToast('Failed to update video', 'error');
     }
   };
 
@@ -948,7 +996,7 @@ const AllMaterialsDisplay = ({ refreshTrigger, courses }) => {
   const updateDocument = async (courseId, documentId, updateData) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`https://edulearnbackend-ffiv.onrender.com/api/course-materials/courses/${courseId}/documents/${documentId}`, {
+      const response = await fetch(`${API_BASE_URL}/course-materials/courses/${courseId}/documents/${documentId}`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -960,9 +1008,11 @@ const AllMaterialsDisplay = ({ refreshTrigger, courses }) => {
       if (response.ok) {
         await fetchAllMaterials();
         setEditingDocument(null);
+        showToast('Document updated successfully!', 'success');
       }
     } catch (error) {
       console.error('Error updating document:', error);
+      showToast('Failed to update document', 'error');
     }
   };
 
@@ -970,7 +1020,7 @@ const AllMaterialsDisplay = ({ refreshTrigger, courses }) => {
   const updateMeeting = async (courseId, meetingId, updateData) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`https://edulearnbackend-ffiv.onrender.com/api/course-materials/courses/${courseId}/meetings/${meetingId}`, {
+      const response = await fetch(`${API_BASE_URL}/course-materials/courses/${courseId}/meetings/${meetingId}`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -982,9 +1032,11 @@ const AllMaterialsDisplay = ({ refreshTrigger, courses }) => {
       if (response.ok) {
         await fetchAllMaterials();
         setEditingMeeting(null);
+        showToast('Meeting updated successfully!', 'success');
       }
     } catch (error) {
       console.error('Error updating meeting:', error);
+      showToast('Failed to update meeting', 'error');
     }
   };
 
@@ -995,9 +1047,9 @@ const AllMaterialsDisplay = ({ refreshTrigger, courses }) => {
       let endpoint;
       
       if (materialType === 'meetings') {
-        endpoint = `https://edulearnbackend-ffiv.onrender.com/api/course-materials/courses/${courseId}/meetings/${materialId}`;
+        endpoint = `${API_BASE_URL}/course-materials/courses/${courseId}/meetings/${materialId}`;
       } else {
-        endpoint = `https://edulearnbackend-ffiv.onrender.com/api/course-materials/courses/${courseId}/materials/${materialType}/${materialId}`;
+        endpoint = `${API_BASE_URL}/course-materials/courses/${courseId}/materials/${materialType}/${materialId}`;
       }
 
       const response = await fetch(endpoint, {
@@ -1011,9 +1063,11 @@ const AllMaterialsDisplay = ({ refreshTrigger, courses }) => {
       if (response.ok) {
         await fetchAllMaterials();
         setDeleteConfirm(null);
+        showToast(`${materialType === 'videos' ? 'Video' : materialType === 'documents' ? 'Document' : 'Meeting'} deleted successfully!`, 'success');
       }
     } catch (error) {
       console.error('Error deleting material:', error);
+      showToast('Failed to delete material', 'error');
     }
   };
 
@@ -1058,35 +1112,98 @@ const AllMaterialsDisplay = ({ refreshTrigger, courses }) => {
     return 'live';
   };
 
-  // Enhanced download function for documents
-  const downloadDocument = async (document) => {
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`https://edulearnbackend-ffiv.onrender.com${document.file_url}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        }
-      });
+  // Play video from Cloudinary
+  const playVideo = (video) => {
+    const url = video.video_url;
+    
+    if (!url) {
+      showToast('This video is not available. Please re-upload it.', 'error');
+      return;
+    }
+    
+    window.open(url, '_blank');
+  };
 
-      if (response.ok) {
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.style.display = 'none';
-        a.href = url;
-        a.download = document.title + '.' + document.file_type;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-      } else {
-        // Fallback to direct download if authenticated download fails
-        window.open(`https://edulearnbackend-ffiv.onrender.com${document.file_url}`, '_blank');
+  // View document from Cloudinary
+  // View document function
+const viewDocument = (document) => {
+  const url = document.file_url;
+  
+  if (!url) {
+    showToast('This document is not available. Please re-upload it.', 'error');
+    return;
+  }
+  
+  // For PDFs: Open in new tab (will show PDF viewer)
+  if (document.file_type === 'pdf') {
+    window.open(url, '_blank');
+  } 
+  // For images: Open in new tab
+  else if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(document.file_type)) {
+    window.open(url, '_blank');
+  }
+  // For other files: Try to open or show message
+  else {
+    // Check if browser can display it
+    const viewableTypes = ['txt', 'html', 'htm'];
+    if (viewableTypes.includes(document.file_type)) {
+      window.open(url, '_blank');
+    } else {
+      showToast(
+        `This ${document.file_type.toUpperCase()} file cannot be viewed directly. Please download it.`,
+        'info'
+      );
+    }
+  }
+};
+
+// Download document function
+const downloadDocument = async (document) => {
+  try {
+    const url = document.file_url;
+    
+    if (!url) {
+      showToast('This file is not available. Please re-upload it.', 'error');
+      return;
+    }
+
+    // Create download link with forced download
+    let downloadUrl = url;
+    
+    if (url.includes('cloudinary.com')) {
+      // For Cloudinary URLs, add download flag with filename
+      const filename = encodeURIComponent(document.title || 'document');
+      if (url.includes('/upload/')) {
+        downloadUrl = url.replace('/upload/', `/upload/fl_attachment:${filename}/`);
       }
-    } catch (error) {
-      console.error('Download error:', error);
-      // Final fallback
-      window.open(`https://edulearnbackend-ffiv.onrender.com${document.file_url}`, '_blank');
+    }
+    
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.download = `${document.title || 'document'}.${document.file_type}`;
+    link.target = '_blank';
+    
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    showToast('Download started!', 'success');
+    
+  } catch (error) {
+    console.error('Download error:', error);
+    showToast('Failed to download document. Please try again.', 'error');
+  }
+};
+
+  // Toast notification function
+  const showToast = (message, type = 'info') => {
+    // Using alert for simplicity - you can replace with a proper toast library
+    if (type === 'error') {
+      alert(`Error: ${message}`);
+    } else if (type === 'success') {
+      alert(`Success: ${message}`);
+    } else {
+      alert(message);
     }
   };
 
@@ -1103,7 +1220,7 @@ const AllMaterialsDisplay = ({ refreshTrigger, courses }) => {
     return (
       <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-6 mt-6">
         <div className="flex items-center justify-center py-12">
-          <div className="text-white text-lg">Loading materials...</div>
+          <div className="text-white text-lg">Loading materials from Cloudinary...</div>
         </div>
       </div>
     );
@@ -1141,7 +1258,7 @@ const AllMaterialsDisplay = ({ refreshTrigger, courses }) => {
     >
       {/* Header with Tabs */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-6 gap-4">
-        <h2 className="text-2xl font-semibold">All Learning Materials</h2>
+        <h2 className="text-2xl font-semibold">All Learning Materials (Cloudinary)</h2>
         
         {/* Tabs */}
         <div className="flex flex-wrap gap-2">
@@ -1232,7 +1349,7 @@ const AllMaterialsDisplay = ({ refreshTrigger, courses }) => {
                       <div className="relative bg-black/20 rounded-lg mb-3 aspect-video flex items-center justify-center">
                         {video.thumbnail_url ? (
                           <img
-                            src={`https://edulearnbackend-ffiv.onrender.com${video.thumbnail_url}`}
+                            src={video.thumbnail_url}
                             alt={video.title}
                             className="w-full h-full object-cover rounded-lg"
                           />
@@ -1240,8 +1357,9 @@ const AllMaterialsDisplay = ({ refreshTrigger, courses }) => {
                           <Video className="w-8 h-8 text-white/50" />
                         )}
                         <button
-                          onClick={() => window.open(`https://edulearnbackend-ffiv.onrender.com${video.video_url}`, '_blank')}
+                          onClick={() => playVideo(video)}
                           className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 hover:opacity-100 transition-opacity"
+                          disabled={!video.video_url}
                         >
                           <PlayCircle className="w-12 h-12 text-white" />
                         </button>
@@ -1369,8 +1487,9 @@ const AllMaterialsDisplay = ({ refreshTrigger, courses }) => {
                         {/* Enhanced Action Buttons */}
                         <div className="flex gap-2 pt-2">
                           <button
-                            onClick={() => window.open(`https://edulearnbackend-ffiv.onrender.com${document.file_url}`, '_blank')}
+                            onClick={() => viewDocument(document)}
                             className="flex-1 bg-blue-500/20 text-blue-400 py-2 px-3 rounded-lg text-sm font-medium hover:bg-blue-500/30 transition-colors flex items-center justify-center gap-2"
+                            disabled={!document.file_url}
                           >
                             <Eye className="w-4 h-4" />
                             View
@@ -1378,6 +1497,7 @@ const AllMaterialsDisplay = ({ refreshTrigger, courses }) => {
                           <button
                             onClick={() => downloadDocument(document)}
                             className="flex-1 bg-green-500/20 text-green-400 py-2 px-3 rounded-lg text-sm font-medium hover:bg-green-500/30 transition-colors flex items-center justify-center gap-2"
+                            disabled={!document.file_url}
                           >
                             <Download className="w-4 h-4" />
                             Download
@@ -1513,7 +1633,7 @@ const AllMaterialsDisplay = ({ refreshTrigger, courses }) => {
                           <button
                             onClick={() => {
                               navigator.clipboard.writeText(meeting.meeting_url);
-                              alert('Meeting link copied to clipboard!');
+                              showToast('Meeting link copied to clipboard!', 'success');
                             }}
                             className="flex-1 bg-blue-500/20 text-blue-400 py-2 px-3 rounded-lg text-sm font-medium hover:bg-blue-500/30 transition-colors flex items-center justify-center gap-2"
                           >
@@ -1688,7 +1808,7 @@ const MeetingEditForm = ({ meeting, onSave, onCancel }) => {
     description: meeting.description || '',
     meeting_url: meeting.meeting_url,
     meeting_type: meeting.meeting_type,
-    scheduled_date: meeting.scheduled_date.slice(0, 16), // Format for datetime-local
+    scheduled_date: meeting.scheduled_date.slice(0, 16),
     duration: meeting.duration,
     meeting_id: meeting.meeting_id || '',
     passcode: meeting.passcode || ''
@@ -1811,7 +1931,7 @@ const DeleteConfirmation = ({ item, onConfirm, onCancel }) => (
       <p className="text-gray-600 mb-4">
         Are you sure you want to delete "<span className="font-semibold">{item.title}</span>"?
       </p>
-      <p className="text-red-500 text-sm mb-6">This action cannot be undone.</p>
+      <p className="text-red-500 text-sm mb-6">This action cannot be undone. File will be deleted from Cloudinary.</p>
       <div className="flex gap-3">
         <button
           onClick={onCancel}
@@ -1828,18 +1948,6 @@ const DeleteConfirmation = ({ item, onConfirm, onCancel }) => (
       </div>
     </motion.div>
   </motion.div>
-);
-
-// Copy Icon Component (since it's not imported from lucide-react)
-const Copy = ({ className = "w-4 h-4" }) => (
-  <svg 
-    className={className} 
-    fill="none" 
-    stroke="currentColor" 
-    viewBox="0 0 24 24"
-  >
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-  </svg>
 );
 
 // Create Course Form Component
@@ -1860,7 +1968,7 @@ const CreateCourseForm = ({ onClose, onSuccess }) => {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('https://edulearnbackend-ffiv.onrender.com/api/course-materials/courses', {
+      const response = await fetch(`${API_BASE_URL}/course-materials/courses`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
