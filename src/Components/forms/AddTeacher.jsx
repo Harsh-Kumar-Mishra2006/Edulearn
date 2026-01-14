@@ -1,26 +1,28 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { X, UserPlus, Mail, Book, Award, Briefcase } from 'lucide-react';
+import { X, UserPlus, Mail, Book,Phone, Award, Briefcase } from 'lucide-react';
 import { courses } from '../../services/Coursefile'; // Import your courses data
 
 const AddTeacher = ({ onClose, onSubmit }) => {
   const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    course: '', // Changed from course_domain to course
-    phone_number: '',
-    qualification: '',
-    years_of_experience: '',
-    address: {
-      street: '',
-      city: '',
-      state: '',
-      pincode: '',
-      country: 'India'
-    },
-    specialization: [], // Added this field
-    bio: '' // Added this field
-  });
+  name: '',
+  email: '',
+  course: '',
+  phone: '', // ✅ Change from phone_number to phone
+  qualification: '',
+  years_of_experience: '',
+  address: {
+    street: '',
+    city: '',
+    state: '',
+    pincode: '',
+    country: 'India'
+  },
+  specialization: [],
+  bio: ''
+});
+
+
   
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
@@ -29,39 +31,117 @@ const AddTeacher = ({ onClose, onSubmit }) => {
   const availableCourses = [...new Set(courses.map(course => course.title))];
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setMessage({ type: '', text: '' });
+  e.preventDefault();
+  setLoading(true);
+  setMessage({ type: '', text: '' });
 
-    const result = await onSubmit(formData);
-    
-    if (result.success) {
-      setMessage({ type: 'success', text: result.message });
-      setFormData({
-        name: '',
-        email: '',
-        course: '',
-        phone_number: '',
-        qualification: '',
-        years_of_experience: '',
-        address: {
-          street: '',
-          city: '',
-          state: '',
-          pincode: '',
-          country: 'India'
-        },
-        specialization: [],
-        bio: ''
-      });
-      setTimeout(() => {
-        onClose();
-      }, 2000);
-    } else {
-      setMessage({ type: 'error', text: result.message });
-    }
-    setLoading(false);
+  // Clean and validate data before sending
+  const processedData = {
+    name: (formData.name || '').trim(),
+    email: (formData.email || '').trim().toLowerCase(),
+    course: (formData.course || '').trim(),
+    phone: (formData.phone || '').trim(),
+    qualification: (formData.qualification || '').trim(),
+    years_of_experience: Number(formData.years_of_experience) || 0, // Convert to number
+    address: {
+      street: (formData.address?.street || '').trim(),
+      city: (formData.address?.city || '').trim(),
+      state: (formData.address?.state || '').trim(),
+      pincode: (formData.address?.pincode || '').trim(),
+      country: (formData.address?.country || 'India').trim()
+    },
+    specialization: Array.isArray(formData.specialization) ? 
+      formData.specialization.map(s => s.trim()).filter(s => s) : [],
+    bio: (formData.bio || '').trim()
   };
+
+  console.log('🔍 Processed data before sending:', processedData);
+
+  // Check for truly empty fields
+  const requiredFields = [
+    { key: 'name', value: processedData.name },
+    { key: 'email', value: processedData.email },
+    { key: 'course', value: processedData.course },
+    { key: 'phone', value: processedData.phone },
+    { key: 'qualification', value: processedData.qualification },
+    { key: 'years_of_experience', value: processedData.years_of_experience }
+  ];
+
+  const emptyFields = requiredFields
+    .filter(field => !field.value && field.value !== 0) // Allow 0 for experience
+    .map(field => field.key);
+
+  // Check address
+  const addressFields = ['street', 'city', 'state', 'pincode'];
+  const emptyAddressFields = addressFields
+    .filter(key => !processedData.address[key])
+    .map(key => `address.${key}`);
+
+  const allEmptyFields = [...emptyFields, ...emptyAddressFields];
+
+  if (allEmptyFields.length > 0) {
+    setMessage({ 
+      type: 'error', 
+      text: `Missing fields: ${allEmptyFields.join(', ')}` 
+    });
+    setLoading(false);
+    return;
+  }
+
+  // Validate phone format
+  const phoneRegex = /^[0-9]{10,15}$/;
+  if (!phoneRegex.test(processedData.phone)) {
+    setMessage({ 
+      type: 'error', 
+      text: 'Phone must be 10-15 digits' 
+    });
+    setLoading(false);
+    return;
+  }
+
+  // Validate experience is a positive number
+  if (processedData.years_of_experience < 0 || processedData.years_of_experience > 50) {
+    setMessage({ 
+      type: 'error', 
+      text: 'Experience must be between 0-50 years' 
+    });
+    setLoading(false);
+    return;
+  }
+
+  const result = await onSubmit(processedData);
+  
+  if (result.success) {
+    setMessage({ type: 'success', text: result.message });
+    // Reset form
+    setFormData({
+      name: '',
+      email: '',
+      course: '',
+      phone: '',
+      qualification: '',
+      years_of_experience: '',
+      address: {
+        street: '',
+        city: '',
+        state: '',
+        pincode: '',
+        country: 'India'
+      },
+      specialization: [],
+      bio: ''
+    });
+    setTimeout(() => {
+      onClose();
+    }, 2000);
+  } else {
+    setMessage({ 
+      type: 'error', 
+      text: result.message || 'Failed to add teacher' 
+    });
+  }
+  setLoading(false);
+};
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -181,23 +261,24 @@ const AddTeacher = ({ onClose, onSubmit }) => {
             </p>
           </div>
           
-          {/* Phone Field */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
+<div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+              <Phone className="w-4 h-4" />
               Phone Number
-            </label>
-            <input
-              type="tel"
-              name="phone_number"
-              value={formData.phone_number}
-              onChange={handleChange}
-              required
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-              placeholder="Enter phone number"
-              pattern="[0-9]{10,15}"
-              title="Please enter a valid 10-15 digit phone number"
-            />
-          </div>
+            </label >      
+<input
+  type="tel"
+  name="phone" // ✅ Change from phone_number to phone
+  value={formData.phone} // ✅ Change from formData.phone_number
+  onChange={handleChange}
+  required
+  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+  placeholder="Enter phone number"
+  pattern="[0-9]{10,15}"
+  title="Please enter a valid 10-15 digit phone number"
+/>
+
+</div>
 
           {/* Qualification Field */}
           <div>
@@ -350,22 +431,7 @@ const AddTeacher = ({ onClose, onSubmit }) => {
               </div>
             </div>
 
-            {/* Country (Optional) */}
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">
-                Country
-              </label>
-              <input
-                type="text"
-                name="address.country"
-                value={formData.address.country}
-                onChange={handleChange}
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-gray-50"
-                placeholder="Country"
-                readOnly
-              />
-              <p className="text-xs text-gray-500 mt-1">Default: India</p>
-            </div>
+            
           </div>
           
           {/* Form Actions */}

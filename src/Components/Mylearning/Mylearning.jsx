@@ -89,6 +89,28 @@ const MyLearning = () => {
     }
   };
 
+  // Helper function to get correct URL for material
+const getMaterialUrl = (url) => {
+  if (!url) return null;
+  
+  // If it's already a full Cloudinary URL, return as-is
+  if (url.includes('res.cloudinary.com')) {
+    return url;
+  }
+  
+  // If it's a Cloudinary public_id without full URL
+  if (url.includes('cloudinary.com') && !url.startsWith('http')) {
+    return `https://res.cloudinary.com/dpsssv5tg/raw/upload/${url}`;
+  }
+  
+  // For old server uploads (shouldn't exist anymore)
+  if (!url.startsWith('http')) {
+    return `https://edulearnbackend-ffiv.onrender.com${url}`;
+  }
+  
+  return url;
+};
+
   const markAsCompleted = async (category, materialType, materialId) => {
     try {
       const token = localStorage.getItem('token');
@@ -113,43 +135,58 @@ const MyLearning = () => {
   };
 
   const downloadDocument = async (document) => {
-    try {
-      const token = localStorage.getItem('token');
-      // Use the full URL from backend
-      const fileUrl = document.file_url.startsWith('http') 
-        ? document.file_url 
-        : ` https://edulearnbackend-ffiv.onrender.com${document.file_url}`;
-      
-      const response = await fetch(fileUrl, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        }
-      });
-
-      if (response.ok) {
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.style.display = 'none';
-        a.href = url;
-        a.download = document.title + '.' + (document.file_type || 'pdf');
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-      } else {
-        // Fallback to opening in new tab
-        window.open(fileUrl, '_blank');
-      }
-    } catch (error) {
-      console.error('Download error:', error);
-      // Fallback to opening in new tab
-      const fileUrl = document.file_url.startsWith('http') 
-        ? document.file_url 
-        : ` https://edulearnbackend-ffiv.onrender.com${document.file_url}`;
-      window.open(fileUrl, '_blank');
+  try {
+    let fileUrl = document.file_url;
+    
+    if (!fileUrl) {
+      alert('This document is not available for download.');
+      return;
     }
-  };
+
+    // For Cloudinary URLs, create downloadable version
+    if (fileUrl.includes('cloudinary.com')) {
+      // Create forced download URL for Cloudinary
+      const filename = encodeURIComponent(document.title || 'document');
+      
+      // Check if it's already a download URL
+      if (!fileUrl.includes('fl_attachment')) {
+        // Add download flag to Cloudinary URL
+        if (fileUrl.includes('/upload/')) {
+          fileUrl = fileUrl.replace('/upload/', `/upload/fl_attachment:${filename}/`);
+        }
+      }
+    } 
+    // For old server uploads (if any exist)
+    else if (!fileUrl.startsWith('http')) {
+      // This shouldn't happen with Cloudinary, but keep as fallback
+      fileUrl = `https://edulearnbackend-ffiv.onrender.com${fileUrl}`;
+    }
+
+    console.log('📥 Download URL:', fileUrl);
+    
+    // Method 1: Create link and click (works best for Cloudinary)
+    const link = document.createElement('a');
+    link.href = fileUrl;
+    link.download = `${document.title || 'download'}.${document.file_type || 'pdf'}`;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    alert('Download started! The file should open in a new tab or start downloading.');
+    
+  } catch (error) {
+    console.error('Download error:', error);
+    
+    // Fallback: Open in new tab
+    const fileUrl = document.file_url?.startsWith('http') 
+      ? document.file_url 
+      : `https://edulearnbackend-ffiv.onrender.com${document.file_url}`;
+    window.open(fileUrl, '_blank');
+  }
+};
 
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
@@ -470,12 +507,31 @@ const MyLearning = () => {
 
                             <div className="flex gap-2">
                               <button
-                                onClick={() => {
-                                  const videoUrl = video.video_url?.startsWith('http') 
-                                    ? video.video_url 
-                                    : ` https://edulearnbackend-ffiv.onrender.com/api${video.video_url}`;
-                                  window.open(videoUrl, '_blank');
-                                }}
+                                // Change the Watch Video button onClick to:
+onClick={() => {
+  let videoUrl = video.video_url;
+  
+  if (!videoUrl) {
+    alert('This video is not available for viewing.');
+    return;
+  }
+
+  // For Cloudinary videos, they can be played directly
+  if (videoUrl.includes('cloudinary.com')) {
+    // Cloudinary videos can be played in browser
+    window.open(videoUrl, '_blank');
+  }
+  // For other URLs
+  else {
+    videoUrl = videoUrl.startsWith('http') 
+      ? videoUrl 
+      : `https://edulearnbackend-ffiv.onrender.com${videoUrl}`;
+    window.open(videoUrl, '_blank');
+  }
+  
+  // Mark as completed after attempting to view
+  markAsCompleted(selectedCategory.course_category, 'videos', video._id);
+}}
                                 className="flex-1 bg-blue-600 text-white py-2 px-3 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
                               >
                                 <PlayCircle className="w-4 h-4" />
@@ -547,12 +603,38 @@ const MyLearning = () => {
 
                             <div className="flex gap-2">
                               <button
-                                onClick={() => {
-                                  const fileUrl = document.file_url?.startsWith('http') 
-                                    ? document.file_url 
-                                    : ` http://localhost:3000${document.file_url}`;
-                                  window.open(fileUrl, '_blank');
-                                }}
+                                // Change the View Document button onClick to:
+onClick={() => {
+  let fileUrl = document.file_url;
+  
+  if (!fileUrl) {
+    alert('This document is not available for viewing.');
+    return;
+  }
+
+  // For Cloudinary PDFs, we can view directly
+  if (fileUrl.includes('cloudinary.com') && document.file_type === 'pdf') {
+    // Open Cloudinary PDF in new tab (will show PDF viewer)
+    window.open(fileUrl, '_blank');
+  }
+  // For Cloudinary images
+  else if (fileUrl.includes('cloudinary.com') && 
+           ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(document.file_type)) {
+    window.open(fileUrl, '_blank');
+  }
+  // For other Cloudinary files or non-viewable files
+  else if (fileUrl.includes('cloudinary.com')) {
+    // For non-PDF/Image files, trigger download instead
+    downloadDocument(document);
+  }
+  // For old server uploads
+  else {
+    fileUrl = fileUrl.startsWith('http') 
+      ? fileUrl 
+      : `https://edulearnbackend-ffiv.onrender.com${fileUrl}`;
+    window.open(fileUrl, '_blank');
+  }
+}}
                                 className="flex-1 bg-gray-600 text-white py-2 px-3 rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors flex items-center justify-center gap-2"
                               >
                                 <Eye className="w-4 h-4" />

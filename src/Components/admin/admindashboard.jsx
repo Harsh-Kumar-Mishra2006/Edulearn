@@ -111,41 +111,137 @@ const AdminDashboard = () => {
   };
 
   const handleAddTeacher = async (teacherData) => {
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('https://edulearnbackend-ffiv.onrender.com/api/admin/add-teacher', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(teacherData)
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        await fetchTeachers();
-        
-        // Store credentials to show in info box
-        if (result.credentials) {
-          setCredentials({
-            ...result.credentials,
-            teacherName: teacherData.name,
-            teacherEmail: teacherData.email
-          });
-        }
-        
-        setShowAddTeacherForm(false);
-        return { success: true, message: result.message };
-      } else {
-        const error = await response.json();
-        return { success: false, message: error.error || 'Failed to add teacher' };
-      }
-    } catch (error) {
-      return { success: false, message: 'Network error occurred' };
+  try {
+    const token = localStorage.getItem('token');
+    
+    // ========== COMPLETE DEBUGGING ==========
+    console.log('📤 === COMPLETE TEACHER DATA ANALYSIS ===');
+    
+    // 1. Log the entire object
+    console.log('📤 Full teacherData:', JSON.stringify(teacherData, null, 2));
+    
+    // 2. Check each field individually
+    const fieldsToCheck = [
+      { key: 'name', value: teacherData.name, required: true },
+      { key: 'email', value: teacherData.email, required: true },
+      { key: 'course', value: teacherData.course, required: true },
+      { key: 'phone', value: teacherData.phone, required: true },
+      { key: 'qualification', value: teacherData.qualification, required: true },
+      { key: 'years_of_experience', value: teacherData.years_of_experience, required: true },
+      { key: 'specialization', value: teacherData.specialization, required: false },
+      { key: 'bio', value: teacherData.bio, required: false }
+    ];
+    
+    console.log('📤 FIELD VALIDATION:');
+    let allFieldsValid = true;
+    fieldsToCheck.forEach(field => {
+      const isValid = field.required ? 
+        (field.value !== undefined && field.value !== null && field.value.toString().trim() !== '') : 
+        true;
+      
+      console.log(`  ${field.key}:`, field.value, isValid ? '✓' : '✗ EMPTY/INVALID');
+      if (!isValid && field.required) allFieldsValid = false;
+    });
+    
+    // 3. Check address fields
+    console.log('📤 ADDRESS FIELDS:');
+    const address = teacherData.address || {};
+    const addressFields = [
+      { key: 'street', value: address.street },
+      { key: 'city', value: address.city },
+      { key: 'state', value: address.state },
+      { key: 'pincode', value: address.pincode },
+      { key: 'country', value: address.country || 'India' }
+    ];
+    
+    addressFields.forEach(field => {
+      const isValid = field.value !== undefined && field.value !== null && field.value.toString().trim() !== '';
+      console.log(`  address.${field.key}:`, field.value, isValid ? '✓' : '✗ EMPTY/INVALID');
+      if (!isValid && field.key !== 'country') allFieldsValid = false;
+    });
+    
+    // 4. Check data types
+    console.log('📤 DATA TYPES:');
+    console.log(`  years_of_experience type:`, typeof teacherData.years_of_experience);
+    console.log(`  years_of_experience value:`, teacherData.years_of_experience);
+    console.log(`  Is number?`, !isNaN(Number(teacherData.years_of_experience)));
+    
+    if (!allFieldsValid) {
+      console.error('❌ FRONTEND VALIDATION FAILED - NOT SENDING TO SERVER');
+      return { 
+        success: false, 
+        message: 'Please fill all required fields correctly before submitting.' 
+      };
     }
-  };
+    
+    console.log('✅ All frontend validation passed, sending to server...');
+    // ========== END DEBUGGING ==========
 
+    const response = await fetch('https://edulearnbackend-ffiv.onrender.com/api/admin/add-teacher', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(teacherData)
+    });
+
+    console.log('📥 Response status:', response.status);
+    console.log('📥 Response headers:', Object.fromEntries(response.headers.entries()));
+
+    if (response.ok) {
+      const result = await response.json();
+      console.log('✅ Teacher added successfully:', result);
+      
+      await fetchTeachers();
+      
+      if (result.credentials) {
+        setCredentials({
+          ...result.credentials,
+          teacherName: teacherData.name,
+          teacherEmail: teacherData.email
+        });
+      }
+      
+      setShowAddTeacherForm(false);
+      return { success: true, message: result.message };
+    } else {
+      // Get the raw response text
+      const responseText = await response.text();
+      console.log('📥 Raw server response:', responseText);
+      
+      let errorMessage = 'Failed to add teacher';
+      let errorDetails = {};
+      
+      try {
+        const errorData = JSON.parse(responseText);
+        console.error('❌ Server error details:', errorData);
+        errorMessage = errorData.error || errorData.message || errorMessage;
+        errorDetails = errorData;
+        
+        // Check if there are validation errors
+        if (errorData.errors) {
+          console.error('❌ Server validation errors:', errorData.errors);
+        }
+      } catch (parseError) {
+        console.error('❌ Failed to parse error response:', parseError);
+        errorMessage = `Server error ${response.status}: ${responseText || 'No details'}`;
+      }
+      
+      return { 
+        success: false, 
+        message: errorMessage,
+        details: errorDetails
+      };
+    }
+  } catch (error) {
+    console.error('❌ Network error:', error);
+    return { 
+      success: false, 
+      message: 'Network error occurred: ' + error.message 
+    };
+  }
+};
 
   const handleDeleteTeacher = async (teacherId) => {
     try {

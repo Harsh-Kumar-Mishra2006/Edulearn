@@ -37,130 +37,119 @@ const MyCourses = () => {
   // Transform old upload URLs to proper format
   // Replace the transformMaterialUrls function in MyCourses.jsx:
 const transformMaterialUrls = (materials) => {
-  if (!materials) return materials;
+  if (!materials) return { videos: [], documents: { all: [] } };
   
-  const transformUrl = (url, fileType = '') => {
-    if (!url) return url;
-    
-    // For Cloudinary URLs, ensure they're in the correct format
-    if (url.includes('cloudinary.com')) {
-      const cloudName = 'dpsssv5tg';
-      
-      // Check if it's already a proper Cloudinary URL
-      if (url.includes('res.cloudinary.com')) {
-        return url;
-      }
-      
-      // If it's a Cloudinary public_id, construct proper URL
-      try {
-        const parts = url.split('/');
-        const publicId = parts[parts.length - 1];
-        const resourceType = fileType === 'pdf' ? 'image' : 
-                            ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(fileType) ? 'image' : 
-                            url.includes('video') ? 'video' : 'raw';
-        
-        return `https://res.cloudinary.com/${cloudName}/${resourceType}/upload/${publicId}`;
-      } catch (error) {
-        console.error('Error transforming Cloudinary URL:', error);
-        return url;
-      }
-    }
-    
-    // For old uploads, mark as unavailable
-    if (url.startsWith('/uploads/')) {
-      return null;
-    }
-    
-    return url;
-  };
-
-  // Transform videos
+  // Backend already formats URLs, so just mark availability
   const transformedVideos = materials.videos?.map(video => ({
     ...video,
-    video_url: transformUrl(video.video_url, 'video'),
-    isAvailable: !!transformUrl(video.video_url, 'video')
+    isAvailable: !!video.video_url
   })) || [];
 
-  // Transform documents
-  const transformedDocumentsAll = materials.documents?.all?.map(doc => ({
+  const transformedDocuments = materials.documents?.map(doc => ({
     ...doc,
-    file_url: transformUrl(doc.file_url, doc.file_type),
-    isAvailable: !!transformUrl(doc.file_url, doc.file_type)
+    isAvailable: !!doc.file_url
   })) || [];
-
-  // Transform documents by category
-  const transformedDocuments = {};
-  if (materials.documents) {
-    Object.keys(materials.documents).forEach(key => {
-      if (key !== 'all') {
-        transformedDocuments[key] = materials.documents[key]?.map(doc => ({
-          ...doc,
-          file_url: transformUrl(doc.file_url, doc.file_type),
-          isAvailable: !!transformUrl(doc.file_url, doc.file_type)
-        })) || [];
-      }
-    });
-    transformedDocuments.all = transformedDocumentsAll;
-  }
 
   return {
     videos: transformedVideos,
-    documents: transformedDocuments
+    documents: {
+      all: transformedDocuments
+    }
   };
 };
 
-  // Fetch teacher's courses from the backend
-  const fetchMyCourses = async () => {
-    try {
-      setLoading(true);
-      const token = localStorage.getItem('token');
-      const queryParams = new URLSearchParams({
-        status: filterStatus,
-        category: filterCategory
-      }).toString();
+  // Change ALL fetch endpoints from teacher to student
 
-      const response = await fetch(`https://edulearnbackend-ffiv.onrender.com/api/teacher/my-courses?${queryParams}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
+// Fetch student's enrolled courses with materials
+const fetchMyCourses = async () => {
+  try {
+    setLoading(true);
+    const token = localStorage.getItem('token');
+    
+    // Changed endpoint
+    const response = await fetch(`https://edulearnbackend-ffiv.onrender.com/api/student/mylearning/courses`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
 
-      if (response.ok) {
-        const data = await response.json();
-        console.log('Fetched courses:', data.data);
-        setCourses(data.data || []);
+    if (response.ok) {
+      const data = await response.json();
+      console.log('🟢 Student courses data:', data);
+      
+      // Backend returns data in {success: true, data: [...]} format
+      if (data.success && data.data) {
+        // Transform the data for frontend
+        const transformedCourses = data.data.map(category => ({
+          _id: category.course_category,
+          course_title: category.category_name,
+          course_description: `Materials for ${category.category_name} course`,
+          status: 'published', // Default for enrolled courses
+          availableVideos: category.materials.videos.filter(v => v.isAvailable).length,
+          availableDocuments: category.materials.documents.filter(d => d.isAvailable).length,
+          detailedMaterials: {
+            videos: category.materials.videos,
+            documents: {
+              all: category.materials.documents
+            }
+          },
+          material_counts: {
+            total_videos: category.total_materials?.videos || 0,
+            total_documents: category.total_materials?.documents || 0
+          }
+        }));
+        
+        console.log('🟢 Transformed courses:', transformedCourses);
+        setCourses(transformedCourses);
       } else {
-        console.error('Failed to fetch courses');
+        console.error('❌ Invalid data format from backend');
         setCourses([]);
       }
-    } catch (error) {
-      console.error('Error fetching courses:', error);
+    } else {
+      const error = await response.json();
+      console.error('❌ Failed to fetch courses:', error);
       setCourses([]);
-    } finally {
-      setLoading(false);
     }
-  };
+  } catch (error) {
+    console.error('❌ Error fetching courses:', error);
+    setCourses([]);
+  } finally {
+    setLoading(false);
+  }
+};
 
-  // Fetch course statistics
-  const fetchCourseStatistics = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('https://edulearnbackend-ffiv.onrender.com/api/teacher/my-courses/statistics', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setStats(data.data);
+// Remove fetchCourseStatistics as it doesn't exist in student routes
+const fetchCourseStatistics = async () => {
+  try {
+    const token = localStorage.getItem('token');
+    const response = await fetch('https://edulearnbackend-ffiv.onrender.com/api/student/mylearning/courses', {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
       }
-    } catch (error) {
-      console.error('Error fetching statistics:', error);
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      if (data.success && data.data) {
+        // Calculate statistics from data
+        const stats = {
+          overview: {
+            total_courses: data.data.length,
+            total_videos: data.data.reduce((sum, cat) => sum + (cat.total_materials?.videos || 0), 0),
+            total_documents: data.data.reduce((sum, cat) => sum + (cat.total_materials?.documents || 0), 0),
+            total_students: 0 // Not available for students
+          }
+        };
+        setStats(stats);
+      }
     }
-  };
+  } catch (error) {
+    console.error('Error fetching statistics:', error);
+  }
+};
+
 
   // Fetch detailed course materials when expanded
   const fetchCourseMaterials = async (courseId) => {

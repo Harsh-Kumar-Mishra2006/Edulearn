@@ -828,6 +828,19 @@ const UploadModal = ({ type, courses, onClose, onSuccess }) => {
 
 // All Materials Display Component
 const AllMaterialsDisplay = ({ refreshTrigger, courses }) => {
+   const [videoPlayer, setVideoPlayer] = useState({
+    isOpen: false,
+    url: '',
+    title: '',
+    type: ''
+  });
+  
+  const [documentViewer, setDocumentViewer] = useState({
+    isOpen: false,
+    url: '',
+    title: '',
+    file_type: ''
+  });
   const [materials, setMaterials] = useState({ videos: [], documents: [], meetings: [] });
   const [loading, setLoading] = useState(true);
   const [editingVideo, setEditingVideo] = useState(null);
@@ -947,27 +960,43 @@ const AllMaterialsDisplay = ({ refreshTrigger, courses }) => {
 
   // Helper function to format Cloudinary URLs
   const formatCloudinaryUrl = (url, resourceType) => {
-    if (!url) return null;
-    
-    // If it's already a proper Cloudinary URL, return as-is
-    if (url.includes('res.cloudinary.com')) {
-      return url;
-    }
-    
-    // If it's an old upload URL, it won't work
-    if (url.startsWith('/uploads/')) {
-      console.warn('⚠️ Old upload URL detected:', url);
-      return null;
-    }
-    
-    // For relative URLs, make them absolute
-    if (url.startsWith('/')) {
-      return `${API_BASE_URL}${url}`;
-    }
-    
+  if (!url) return null;
+  
+  // If it's already a proper Cloudinary URL, return as-is
+  if (url.includes('res.cloudinary.com')) {
     return url;
-  };
+  }
+  
+  // If it's a public_id (filename), construct Cloudinary URL
+  if (!url.includes('http') && !url.includes('cloudinary')) {
+    const cloudName = 'dpsssv5tg'; // Your Cloudinary cloud name
+    const folder = resourceType === 'video' ? 'video/upload' : 'raw/upload';
+    
+    return `https://res.cloudinary.com/${cloudName}/${folder}/${url}`;
+  }
+  
+  return url;
+};
 
+
+  // Helper to generate video thumbnail URL
+const getVideoThumbnailUrl = (videoUrl) => {
+  if (!videoUrl || !videoUrl.includes('cloudinary.com')) return null;
+  
+  try {
+    // Extract public ID from Cloudinary URL
+    const urlParts = videoUrl.split('/upload/');
+    if (urlParts.length < 2) return null;
+    
+    const publicIdWithFormat = urlParts[1];
+    const publicId = publicIdWithFormat.replace(/\.\w+$/, ''); // Remove file extension
+    
+    return `https://res.cloudinary.com/dpsssv5tg/video/upload/w_600,h_400,c_fill/${publicId}.jpg`;
+  } catch (error) {
+    console.error('Error generating thumbnail URL:', error);
+    return null;
+  }
+};
   // Update video info
   const updateVideo = async (courseId, videoId, updateData) => {
     try {
@@ -1113,19 +1142,27 @@ const AllMaterialsDisplay = ({ refreshTrigger, courses }) => {
   };
 
   // Play video from Cloudinary
-  const playVideo = (video) => {
-    const url = video.video_url;
-    
-    if (!url) {
-      showToast('This video is not available. Please re-upload it.', 'error');
-      return;
-    }
-    
-    window.open(url, '_blank');
-  };
+  // Replace the playVideo function (around line 624)
+const playVideo = (video) => {
+  const url = video.video_url;
+  
+  if (!url) {
+    showToast('This video is not available. Please re-upload it.', 'error');
+    return;
+  }
+  
+  // Create a proper video player modal
+  setVideoPlayer({
+    isOpen: true,
+    url: url,
+    title: video.title,
+    type: 'video'
+  });
+};
 
   // View document from Cloudinary
   // View document function
+// Replace the viewDocument function (around line 639)
 const viewDocument = (document) => {
   const url = document.file_url;
   
@@ -1134,30 +1171,16 @@ const viewDocument = (document) => {
     return;
   }
   
-  // For PDFs: Open in new tab (will show PDF viewer)
-  if (document.file_type === 'pdf') {
-    window.open(url, '_blank');
-  } 
-  // For images: Open in new tab
-  else if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(document.file_type)) {
-    window.open(url, '_blank');
-  }
-  // For other files: Try to open or show message
-  else {
-    // Check if browser can display it
-    const viewableTypes = ['txt', 'html', 'htm'];
-    if (viewableTypes.includes(document.file_type)) {
-      window.open(url, '_blank');
-    } else {
-      showToast(
-        `This ${document.file_type.toUpperCase()} file cannot be viewed directly. Please download it.`,
-        'info'
-      );
-    }
-  }
+  // Create a viewer modal
+  setDocumentViewer({
+    isOpen: true,
+    url: url,
+    title: document.title,
+    file_type: document.file_type
+  });
 };
-
 // Download document function
+// Replace the downloadDocument function (around line 662)
 const downloadDocument = async (document) => {
   try {
     const url = document.file_url;
@@ -1167,21 +1190,29 @@ const downloadDocument = async (document) => {
       return;
     }
 
-    // Create download link with forced download
-    let downloadUrl = url;
+    // Extract filename from URL or use document title
+    let filename = document.title || 'document';
+    const fileExtension = document.file_type;
     
-    if (url.includes('cloudinary.com')) {
-      // For Cloudinary URLs, add download flag with filename
-      const filename = encodeURIComponent(document.title || 'document');
-      if (url.includes('/upload/')) {
-        downloadUrl = url.replace('/upload/', `/upload/fl_attachment:${filename}/`);
-      }
+    // Add extension if not present
+    if (!filename.toLowerCase().endsWith(`.${fileExtension}`)) {
+      filename = `${filename}.${fileExtension}`;
     }
     
+    // Create a temporary link for download
     const link = document.createElement('a');
-    link.href = downloadUrl;
-    link.download = `${document.title || 'document'}.${document.file_type}`;
+    link.href = url;
+    
+    // For Cloudinary files, add download parameter
+    if (url.includes('cloudinary.com')) {
+      // Cloudinary supports forced download with flag
+      const downloadUrl = url.includes('fl_attachment') ? url : url.replace('/upload/', '/upload/fl_attachment/');
+      link.href = downloadUrl;
+    }
+    
+    link.download = filename;
     link.target = '_blank';
+    link.rel = 'noopener noreferrer';
     
     document.body.appendChild(link);
     link.click();
@@ -1249,6 +1280,156 @@ const downloadDocument = async (document) => {
     documents: activeTab === 'all' || activeTab === 'documents' ? materials.documents : [],
     meetings: activeTab === 'all' || activeTab === 'meetings' ? materials.meetings : []
   };
+
+  // Video Player Modal Component
+const VideoPlayerModal = ({ isOpen, onClose, videoUrl, title }) => {
+  if (!isOpen) return null;
+  
+  return (
+    <motion.div
+      className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 z-[100]"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onClick={onClose}
+    >
+      <motion.div
+        className="bg-gray-900 rounded-xl w-full max-w-4xl"
+        initial={{ scale: 0.8, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.8, opacity: 0 }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b border-gray-700">
+          <h3 className="text-white font-semibold truncate">{title}</h3>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-white transition-colors"
+          >
+            <X className="w-6 h-6" />
+          </button>
+        </div>
+        
+        {/* Video Player */}
+        <div className="p-2">
+          <video
+            src={videoUrl}
+            controls
+            autoPlay
+            className="w-full h-auto max-h-[70vh] rounded-lg"
+            controlsList="nodownload"
+          >
+            Your browser does not support the video tag.
+          </video>
+        </div>
+        
+        {/* Controls */}
+        <div className="p-4 border-t border-gray-700">
+          <div className="flex justify-end gap-3">
+            <button
+              onClick={() => window.open(videoUrl, '_blank')}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+            >
+              <ExternalLink className="w-4 h-4" />
+              Open in New Tab
+            </button>
+            <button
+              onClick={onClose}
+              className="px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+};
+
+// Document Viewer Modal Component
+const DocumentViewerModal = ({ isOpen, onClose, documentUrl, title, file_type }) => {
+  if (!isOpen) return null;
+  
+  const isPDF = file_type === 'pdf';
+  const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].includes(file_type);
+  
+  return (
+    <motion.div
+      className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 z-[100]"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onClick={onClose}
+    >
+      <motion.div
+        className="bg-gray-900 rounded-xl w-full max-w-6xl h-[90vh] flex flex-col"
+        initial={{ scale: 0.8, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.8, opacity: 0 }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b border-gray-700">
+          <h3 className="text-white font-semibold truncate">
+            {title} ({file_type.toUpperCase()})
+          </h3>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => window.open(documentUrl, '_blank')}
+              className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-1"
+            >
+              <ExternalLink className="w-3 h-3" />
+              Open
+            </button>
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-white transition-colors"
+            >
+              <X className="w-6 h-6" />
+            </button>
+          </div>
+        </div>
+        
+        {/* Document Viewer */}
+        <div className="flex-1 overflow-hidden p-2">
+          {isPDF ? (
+            <iframe
+              src={documentUrl}
+              className="w-full h-full rounded-lg bg-white"
+              title={title}
+              frameBorder="0"
+            />
+          ) : isImage ? (
+            <div className="w-full h-full flex items-center justify-center bg-black/20">
+              <img
+                src={documentUrl}
+                alt={title}
+                className="max-w-full max-h-full object-contain rounded-lg"
+              />
+            </div>
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-white">
+              <div className="text-center">
+                <FileText className="w-16 h-16 mx-auto mb-4 text-gray-400" />
+                <p className="text-lg mb-2">This file cannot be previewed</p>
+                <p className="text-gray-400 mb-4">Please download to view the content</p>
+                <a
+                  href={documentUrl}
+                  download={title}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors inline-flex items-center gap-2"
+                >
+                  <Download className="w-4 h-4" />
+                  Download {file_type.toUpperCase()}
+                </a>
+              </div>
+            </div>
+          )}
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+};
 
   return (
     <motion.div
@@ -1346,24 +1527,30 @@ const downloadDocument = async (document) => {
                       </div>
 
                       {/* Video Preview */}
-                      <div className="relative bg-black/20 rounded-lg mb-3 aspect-video flex items-center justify-center">
-                        {video.thumbnail_url ? (
-                          <img
-                            src={video.thumbnail_url}
-                            alt={video.title}
-                            className="w-full h-full object-cover rounded-lg"
-                          />
-                        ) : (
-                          <Video className="w-8 h-8 text-white/50" />
-                        )}
-                        <button
-                          onClick={() => playVideo(video)}
-                          className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 hover:opacity-100 transition-opacity"
-                          disabled={!video.video_url}
-                        >
-                          <PlayCircle className="w-12 h-12 text-white" />
-                        </button>
-                      </div>
+                      {/* Video Preview */}
+<div className="relative bg-black/20 rounded-lg mb-3 aspect-video flex items-center justify-center group">
+  {/* Generate thumbnail URL from Cloudinary video URL */}
+  {video.video_url && (
+    <img
+      src={`${video.video_url.replace('/upload/', '/upload/w_600,h_400,c_fill/')}.jpg`}
+      alt={video.title}
+      className="w-full h-full object-cover rounded-lg"
+      onError={(e) => {
+        // If thumbnail fails, show fallback
+        e.target.style.display = 'none';
+      }}
+    />
+  )}
+  <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity">
+    <button
+      onClick={() => playVideo(video)}
+      className="w-16 h-16 bg-blue-600/80 rounded-full flex items-center justify-center hover:bg-blue-600 transition-colors"
+      disabled={!video.video_url}
+    >
+      <PlayCircle className="w-8 h-8 text-white" />
+    </button>
+  </div>
+</div>
 
                       {/* Video Info */}
                       <div className="space-y-2 text-sm text-white/70">
@@ -1651,16 +1838,31 @@ const downloadDocument = async (document) => {
         </div>
       )}
 
+       <VideoPlayerModal
+      isOpen={videoPlayer.isOpen}
+      onClose={() => setVideoPlayer({ isOpen: false, url: '', title: '' })}
+      videoUrl={videoPlayer.url}
+      title={videoPlayer.title}
+    />
+    
+    <DocumentViewerModal
+      isOpen={documentViewer.isOpen}
+      onClose={() => setDocumentViewer({ isOpen: false, url: '', title: '', file_type: '' })}
+      documentUrl={documentViewer.url}
+      title={documentViewer.title}
+      file_type={documentViewer.file_type}
+    />
+
       {/* Delete Confirmation Modal */}
-      <AnimatePresence>
-        {deleteConfirm && (
-          <DeleteConfirmation
-            item={deleteConfirm}
-            onConfirm={() => deleteMaterial(deleteConfirm.courseId, deleteConfirm.type, deleteConfirm.id)}
-            onCancel={() => setDeleteConfirm(null)}
-          />
-        )}
-      </AnimatePresence>
+       <AnimatePresence>
+      {deleteConfirm && (
+        <DeleteConfirmation
+          item={deleteConfirm}
+          onConfirm={() => deleteMaterial(deleteConfirm.courseId, deleteConfirm.type, deleteConfirm.id)}
+          onCancel={() => setDeleteConfirm(null)}
+        />
+      )}
+    </AnimatePresence>
     </motion.div>
   );
 };
