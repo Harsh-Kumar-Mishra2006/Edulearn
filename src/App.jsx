@@ -62,7 +62,6 @@ const App = () => {
             <>
               <HeroSection />
               <CoursesPage />
-               <NewCourses/>
             </>
           } />
           <Route path="/dashboard" element={

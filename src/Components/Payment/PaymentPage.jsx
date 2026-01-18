@@ -195,14 +195,9 @@ const PaymentPage = () => {
 
 // In your PaymentPage.jsx, replace the handleConfirmEnrollment function with this:
 
-const handleConfirmEnrollment = async () => {
-  // Validation checks
-  if (!courseData) {
-    alert('Course information is missing. Please go back and select a course again.');
-    navigate('/courses');
-    return;
-  }
+// In PaymentPage.jsx, simplify handleConfirmEnrollment:
 
+const handleConfirmEnrollment = async () => {
   if (!isUploaded || !selectedFile) {
     alert('Please upload payment screenshot first');
     return;
@@ -221,68 +216,33 @@ const handleConfirmEnrollment = async () => {
         break;
       }
     }
-    
+
     if (!studentEmail && location.state?.email) {
       studentEmail = location.state.email;
     }
 
     if (!studentEmail) {
-      const emailInput = prompt('Please enter your email address for enrollment:');
-      if (!emailInput) {
-        setProcessing(false);
-        return;
-      }
-      studentEmail = emailInput;
-    }
-
-    // CRITICAL: Map new courses to hardcoded course names
-    const mapCourseToHardcoded = (courseTitle) => {
-      const mapping = {
-        // Map new courses to existing hardcoded courses
-        'Photopea Course': 'Graphic Design',
-        'Social Media Handling': 'Digital Marketing',
-        'Data Science': 'Web Development',
-        'Business Analytics': 'Microsoft Office',
-        'Python Programming': 'Web Development',
-        'React JS': 'Web Development',
-        'Photoshop': 'Graphic Design',
-        'Video Editing': 'UI/UX Design'
-      };
-      
-      return mapping[courseTitle] || courseTitle;
-    };
-
-    const mappedCourseTitle = mapCourseToHardcoded(courseData.title);
-    
-    console.log('🟡 Original course:', courseData.title);
-    console.log('🟡 Mapped course for backend:', mappedCourseTitle);
-
-    // Check if the mapped course is in hardcoded list
-    const hardcodedCourses = [
-      'Web Development',
-      'Microsoft Office', 
-      'Mobile App Development',
-      'UI/UX Design',
-      'Digital Marketing',
-      'Graphic Design'
-    ];
-
-    if (!hardcodedCourses.includes(mappedCourseTitle)) {
-      alert(`This course "${courseData.title}" cannot be enrolled online yet. Please contact admin for manual enrollment.`);
+      alert('Email not found. Please complete the registration process first.');
       setProcessing(false);
       return;
     }
 
-    // Create FormData
+    // Validate course data
+    if (!courseData || !courseData.title || courseData.price === undefined) {
+      alert('Course information is missing');
+      setProcessing(false);
+      return;
+    }
+
+    // Create FormData - send exact course title
     const formData = new FormData();
     formData.append('screenshot', selectedFile);
     formData.append('student_email', studentEmail);
-    formData.append('course_track', mappedCourseTitle);  // Use MAPPED title
+    formData.append('course_track', courseData.title); // Exact title
     formData.append('amount', courseData.price.toString());
 
-    console.log('🟡 Sending payment data:', {
-      originalCourse: courseData.title,
-      mappedCourse: mappedCourseTitle,
+    console.log('🟡 Sending payment:', {
+      course: courseData.title,
       price: courseData.price,
       email: studentEmail
     });
@@ -292,9 +252,7 @@ const handleConfirmEnrollment = async () => {
       'https://edulearnbackend-ffiv.onrender.com/api/payment/process',
       formData,
       {
-        headers: {
-          'Content-Type': 'multipart/form-data'
-        },
+        headers: { 'Content-Type': 'multipart/form-data' },
         timeout: 30000
       }
     );
@@ -302,35 +260,9 @@ const handleConfirmEnrollment = async () => {
     console.log('🟢 Payment response:', response.data);
 
     if (response.data.success) {
-      // IMPORTANT: Also create a custom enrollment record for the actual course
-      try {
-        // Store actual enrollment info in localStorage
-        const actualEnrollment = {
-          actualCourse: courseData.title,
-          actualCourseId: courseData.id,
-          mappedCourse: mappedCourseTitle,
-          enrollmentDate: new Date().toISOString(),
-          paymentId: response.data.payment_id,
-          enrollmentId: response.data.enrollment_id,
-          pricePaid: courseData.price,
-          studentEmail: studentEmail,
-          status: 'enrolled_temporary'
-        };
-        
-        // Save to localStorage
-        const existingEnrollments = JSON.parse(localStorage.getItem('manualEnrollments') || '[]');
-        existingEnrollments.push(actualEnrollment);
-        localStorage.setItem('manualEnrollments', JSON.stringify(existingEnrollments));
-        
-        console.log('✅ Saved actual enrollment info:', actualEnrollment);
-      } catch (storageError) {
-        console.error('Error saving enrollment info:', storageError);
-      }
-
-      // Show success
       setShowSuccess(true);
       
-      // Store for dashboard
+      // Store enrollment info
       localStorage.setItem('recentEnrollment', JSON.stringify({
         courseTitle: courseData.title,
         enrollmentDate: new Date().toISOString(),
@@ -338,7 +270,6 @@ const handleConfirmEnrollment = async () => {
         enrollmentId: response.data.enrollment_id
       }));
       
-      // Auto navigate
       setTimeout(() => {
         navigate('/dashboard');
       }, 3000);
@@ -346,24 +277,30 @@ const handleConfirmEnrollment = async () => {
       alert(`Payment failed: ${response.data.error || 'Unknown error'}`);
     }
     
-  } catch (error) {
-    console.error('🔴 Error processing payment:', error);
+  }  catch (error) {
+  console.error('🔴 Payment error:', error);
+  
+  let errorMessage = 'Payment processing failed';
+  let errorDetails = '';
+  
+  if (error.response) {
+    console.log('🔴 Full error response:', error.response.data);
+    console.log('🔴 Error status:', error.response.status);
+    console.log('🔴 Error headers:', error.response.headers);
     
-    let errorMessage = 'An error occurred while processing payment';
-    
-    if (error.response) {
-      errorMessage = error.response.data.error || `Server error: ${error.response.status}`;
-    } else if (error.request) {
-      errorMessage = 'Network error: Could not connect to server.';
-    } else {
-      errorMessage = error.message;
-    }
-    
-    alert(`Error: ${errorMessage}`);
-    
-  } finally {
-    setProcessing(false);
+    errorMessage = error.response.data.error || `Server error: ${error.response.status}`;
+    errorDetails = JSON.stringify(error.response.data, null, 2);
+  } else if (error.request) {
+    errorMessage = 'Cannot connect to server. Please check your internet connection.';
+  } else {
+    errorMessage = error.message;
   }
+  
+  alert(`Error: ${errorMessage}\n\n${errorDetails ? 'Details:\n' + errorDetails : ''}`);
+  
+} finally {
+  setProcessing(false);
+}
 };
 
   // Animation Components (keep the same as before)
