@@ -25,7 +25,6 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import AddNewCourse from './newCourse/addNewCourse';
 
 const API_BASE_URL = 'https://edulearnbackend-ffiv.onrender.com/api';
 
