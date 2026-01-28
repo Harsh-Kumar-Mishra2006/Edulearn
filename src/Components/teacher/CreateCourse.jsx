@@ -34,7 +34,7 @@ const CreateCourse = () => {
   const [user, setUser] = useState(null);
   const [courses, setCourses] = useState([]);
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const [showUploadModal, setShowUploadModal] = useState(null); // 'video', 'document', or 'meeting'
+  const [showUploadModal, setShowUploadModal] = useState(null); 
   const [selectedCourse, setSelectedCourse] = useState(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [showAddCourseForm, setShowAddCourseForm] = useState(false);
@@ -214,25 +214,7 @@ const CreateCourse = () => {
               <p className="text-white/80 text-sm">Create and manage courses</p>
             </motion.div>
 
-            {/* Add Course to Catalog Card */}
-            <motion.div 
-              className="bg-gradient-to-br from-green-600/20 to-emerald-600/20 backdrop-blur-md border border-emerald-500/30 rounded-2xl p-6 text-center cursor-pointer hover:from-green-600/30 hover:to-emerald-600/30 transition-all duration-300 group"
-              whileHover={{ scale: 1.05, y: -5 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => setShowAddCourseForm(true)}
-            >
-              <div className="relative">
-                <BookOpen className="w-12 h-12 mx-auto mb-3 text-emerald-400 group-hover:text-emerald-300 transition-colors" />
-                <div className="absolute -top-1 -right-1 bg-emerald-500 rounded-full p-1">
-                  <Plus className="w-4 h-4 text-white" />
-                </div>
-              </div>
-              <h3 className="text-xl font-semibold mb-2 text-white">Add to Catalog</h3>
-              <p className="text-white/80 text-sm">Create new course for all students</p>
-              <span className="inline-block mt-2 px-2 py-1 bg-emerald-500/20 text-emerald-300 text-xs rounded-full border border-emerald-500/30">
-                New Feature
-              </span>
-            </motion.div>
+            
 
             <AnimatePresence>
               {showAddCourseForm && (
@@ -2283,12 +2265,19 @@ const CreateCourseForm = ({ onClose, onSuccess }) => {
               className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
             >
               <option value="web-development">Web Development</option>
-              <option value="app-development">App Development</option>
+              <option value="microsoft-office">Microsoft Office </option>
+              <option value="c-programming">C Programming</option>
+              <option value="java">java</option>
+              <option value="php">php</option>
+              <option value="dbms">DBMS</option>
               <option value="digital-marketing">Digital Marketing</option>
-              <option value="microsoft-office">Microsoft Office</option>
-              <option value="ui-ux-design">UI UX Design</option>
-              <option value="business">Business</option>
-              <option value="other">Other</option>
+              <option value="tally">Tally</option>
+              <option value="microsoft-word">Microsoft Word</option>
+              <option value="microsoft-excel">Microsoft Excel</option>
+              <option value="microsoft-powerPoint">Microsoft Powerpoint</option>
+              <option value="python">Python</option>
+              <option value="email-internet">Email & Internet</option>
+              <option value="canva">Canva</option>
             </select>
           </div>
           

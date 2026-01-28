@@ -1,3 +1,4 @@
+//admindashboard
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -14,7 +15,9 @@ import {
   CheckCircle,
   X,
   BookText,
-  PlusCircle
+  PlusCircle,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import AddTeacher from '../forms/AddTeacher';
 import { useNavigate } from 'react-router-dom';
@@ -26,232 +29,123 @@ const AdminDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [credentials, setCredentials] = useState(null);
   const [copiedField, setCopiedField] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [teachersPerPage] = useState(6); // Show 6 teachers per page
   const navigate = useNavigate();
 
   const fetchTeachers = async () => {
-  try {
-    setLoading(true); // Add this
-    const token = localStorage.getItem('token');
-    
-    // Add timeout
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
-    
-    const response = await fetch('https://edulearnbackend-ffiv.onrender.com/api/admin/teachers', {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      signal: controller.signal
-    });
-
-    clearTimeout(timeoutId);
-    
-    if (response.ok) {
-      const result = await response.json();
-      // Debug: Check actual response structure
-      console.log('Teachers API Response:', result);
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('token');
       
-      // Use result.data (based on your backend response)
-      if (result.success && Array.isArray(result.data)) {
-        setTeachers(result.data);
-      } else if (Array.isArray(result.teachers)) {
-        setTeachers(result.teachers);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      
+      const response = await fetch('https://edulearnbackend-ffiv.onrender.com/api/admin/teachers', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+      
+      if (response.ok) {
+        const result = await response.json();
+        console.log('Teachers API Response:', result);
+        
+        // Handle different response structures
+        let teachersArray = [];
+        if (result.success && Array.isArray(result.data)) {
+          teachersArray = result.data;
+        } else if (Array.isArray(result.teachers)) {
+          teachersArray = result.teachers;
+        } else if (Array.isArray(result)) {
+          teachersArray = result;
+        } else if (result.data && Array.isArray(result.data.teachers)) {
+          teachersArray = result.data.teachers;
+        }
+        
+        console.log('Loaded teachers count:', teachersArray.length);
+        setTeachers(teachersArray);
       } else {
-        console.error('Unexpected response format:', result);
+        console.error('Failed to fetch teachers:', response.status);
         setTeachers([]);
       }
-    } else {
-      console.error('Failed to fetch teachers:', response.status);
-      setTeachers([]);
-    }
-  } catch (error) {
-    if (error.name === 'AbortError') {
-      console.error('Request timeout');
-    } else {
-      console.error('Error fetching teachers:', error);
-    }
-    setTeachers([]);
-  } finally {
-    setLoading(false); // ✅ CRITICAL: Always set loading to false
-  }
-};
- 
-  useEffect(() => {
-  let isMounted = true;
-  
-  const loadData = async () => {
-    await fetchTeachers();
-  };
-  
-  loadData();
-  
-  return () => {
-    isMounted = false;
-  };
-}, []);
-
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        delayChildren: 0.3,
-        staggerChildren: 0.2
+    } catch (error) {
+      if (error.name === 'AbortError') {
+        console.error('Request timeout');
+      } else {
+        console.error('Error fetching teachers:', error);
       }
+      setTeachers([]);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const itemVariants = {
-    hidden: { y: 20, opacity: 0 },
-    visible: {
-      y: 0,
-      opacity: 1
-    }
-  };
+  useEffect(() => {
+    fetchTeachers();
+  }, []);
 
   const handleAddTeacher = async (teacherData) => {
-  try {
-    const token = localStorage.getItem('token');
-    
-    // ========== COMPLETE DEBUGGING ==========
-    console.log('📤 === COMPLETE TEACHER DATA ANALYSIS ===');
-    
-    // 1. Log the entire object
-    console.log('📤 Full teacherData:', JSON.stringify(teacherData, null, 2));
-    
-    // 2. Check each field individually
-    const fieldsToCheck = [
-      { key: 'name', value: teacherData.name, required: true },
-      { key: 'email', value: teacherData.email, required: true },
-      { key: 'course', value: teacherData.course, required: true },
-      { key: 'phone', value: teacherData.phone, required: true },
-      { key: 'qualification', value: teacherData.qualification, required: true },
-      { key: 'years_of_experience', value: teacherData.years_of_experience, required: true },
-      { key: 'specialization', value: teacherData.specialization, required: false },
-      { key: 'bio', value: teacherData.bio, required: false }
-    ];
-    
-    console.log('📤 FIELD VALIDATION:');
-    let allFieldsValid = true;
-    fieldsToCheck.forEach(field => {
-      const isValid = field.required ? 
-        (field.value !== undefined && field.value !== null && field.value.toString().trim() !== '') : 
-        true;
-      
-      console.log(`  ${field.key}:`, field.value, isValid ? '✓' : '✗ EMPTY/INVALID');
-      if (!isValid && field.required) allFieldsValid = false;
-    });
-    
-    // 3. Check address fields
-    console.log('📤 ADDRESS FIELDS:');
-    const address = teacherData.address || {};
-    const addressFields = [
-      { key: 'street', value: address.street },
-      { key: 'city', value: address.city },
-      { key: 'state', value: address.state },
-      { key: 'pincode', value: address.pincode },
-      { key: 'country', value: address.country || 'India' }
-    ];
-    
-    addressFields.forEach(field => {
-      const isValid = field.value !== undefined && field.value !== null && field.value.toString().trim() !== '';
-      console.log(`  address.${field.key}:`, field.value, isValid ? '✓' : '✗ EMPTY/INVALID');
-      if (!isValid && field.key !== 'country') allFieldsValid = false;
-    });
-    
-    // 4. Check data types
-    console.log('📤 DATA TYPES:');
-    console.log(`  years_of_experience type:`, typeof teacherData.years_of_experience);
-    console.log(`  years_of_experience value:`, teacherData.years_of_experience);
-    console.log(`  Is number?`, !isNaN(Number(teacherData.years_of_experience)));
-    
-    if (!allFieldsValid) {
-      console.error('❌ FRONTEND VALIDATION FAILED - NOT SENDING TO SERVER');
-      return { 
-        success: false, 
-        message: 'Please fill all required fields correctly before submitting.' 
-      };
-    }
-    
-    console.log('✅ All frontend validation passed, sending to server...');
-    // ========== END DEBUGGING ==========
+    // ... keep your existing handleAddTeacher code as is ...
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('https://edulearnbackend-ffiv.onrender.com/api/admin/add-teacher', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(teacherData)
+      });
 
-    const response = await fetch('https://edulearnbackend-ffiv.onrender.com/api/admin/add-teacher', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(teacherData)
-    });
-
-    console.log('📥 Response status:', response.status);
-    console.log('📥 Response headers:', Object.fromEntries(response.headers.entries()));
-
-    if (response.ok) {
-      const result = await response.json();
-      console.log('✅ Teacher added successfully:', result);
-      
-      await fetchTeachers();
-      
-      if (result.credentials) {
-        setCredentials({
-          ...result.credentials,
-          teacherName: teacherData.name,
-          teacherEmail: teacherData.email
-        });
-      }
-      
-      setShowAddTeacherForm(false);
-      return { success: true, message: result.message };
-    } else {
-      // Get the raw response text
-      const responseText = await response.text();
-      console.log('📥 Raw server response:', responseText);
-      
-      let errorMessage = 'Failed to add teacher';
-      let errorDetails = {};
-      
-      try {
-        const errorData = JSON.parse(responseText);
-        console.error('❌ Server error details:', errorData);
-        errorMessage = errorData.error || errorData.message || errorMessage;
-        errorDetails = errorData;
+      if (response.ok) {
+        const result = await response.json();
+        console.log('Teacher added successfully:', result);
         
-        // Check if there are validation errors
-        if (errorData.errors) {
-          console.error('❌ Server validation errors:', errorData.errors);
+        // Refresh the teachers list
+        await fetchTeachers();
+        
+        if (result.credentials) {
+          setCredentials({
+            ...result.credentials,
+            teacherName: teacherData.name,
+            teacherEmail: teacherData.email
+          });
         }
-      } catch (parseError) {
-        console.error('❌ Failed to parse error response:', parseError);
-        errorMessage = `Server error ${response.status}: ${responseText || 'No details'}`;
+        
+        setShowAddTeacherForm(false);
+        return { success: true, message: result.message };
+      } else {
+        const responseText = await response.text();
+        console.error('Server error:', responseText);
+        return { 
+          success: false, 
+          message: 'Failed to add teacher'
+        };
       }
-      
+    } catch (error) {
+      console.error('Network error:', error);
       return { 
         success: false, 
-        message: errorMessage,
-        details: errorDetails
+        message: 'Network error: ' + error.message 
       };
     }
-  } catch (error) {
-    console.error('❌ Network error:', error);
-    return { 
-      success: false, 
-      message: 'Network error occurred: ' + error.message 
-    };
-  }
-};
+  };
 
   const handleDeleteTeacher = async (teacherId) => {
     try {
       const token = localStorage.getItem('token');
+      const teacherToDelete = teachers.find(t => t._id === teacherId);
       
-      // Remove from UI immediately
+      // Optimistically remove from UI
       setTeachers(prev => prev.filter(teacher => teacher._id !== teacherId));
       setDeleteTeacherId(null);
       
-      // Send delete request in background
+      // Send delete request
       const response = await fetch(`https://edulearnbackend-ffiv.onrender.com/api/admin/teachers/${teacherId}`, {
         method: 'DELETE',
         headers: {
@@ -261,15 +155,19 @@ const AdminDashboard = () => {
       });
 
       if (!response.ok) {
-        // If delete fails, refresh list to restore teacher
-        await fetchTeachers();
-        console.error('Delete failed on backend');
+        // If delete fails on backend, revert UI state
+        console.error('Delete failed on backend, refreshing...');
+        await fetchTeachers(); // Refresh from server
+        alert('Failed to delete teacher. Please try again.');
+      } else {
+        console.log('Teacher deleted successfully');
       }
       
     } catch (error) {
       console.error('Network error:', error);
       // On error, refresh to get correct state
       await fetchTeachers();
+      alert('Network error. Please check your connection.');
     }
   };
 
@@ -292,6 +190,23 @@ const AdminDashboard = () => {
     navigate('/certificate-management');
   };
 
+  // Pagination logic
+  const indexOfLastTeacher = currentPage * teachersPerPage;
+  const indexOfFirstTeacher = indexOfLastTeacher - teachersPerPage;
+  const currentTeachers = teachers.slice(indexOfFirstTeacher, indexOfLastTeacher);
+  const totalPages = Math.ceil(teachers.length / teachersPerPage);
+
+  const handleNextPage = () => {
+    if (currentPage < totalPages) {
+      setCurrentPage(currentPage + 1);
+    }
+  };
+
+  const handlePrevPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(currentPage - 1);
+    }
+  };
 
   if (loading) {
     return (
@@ -303,7 +218,7 @@ const AdminDashboard = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-600 via-purple-600 to-indigo-800">
-      {/* Header */}
+      {/* Header - keep as is */}
       <motion.div
         className="bg-white/10 backdrop-blur-md border-b border-white/20"
         initial={{ y: -50, opacity: 0 }}
@@ -327,23 +242,17 @@ const AdminDashboard = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <motion.div
           className="text-white"
-          variants={containerVariants}
-          initial="hidden"
-          animate="visible"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.5 }}
         >
           {/* Dashboard Title */}
-          <motion.h1 
-            variants={itemVariants}
-            className="text-4xl md:text-5xl font-light text-center mb-8"
-          >
+          <h1 className="text-4xl md:text-5xl font-light text-center mb-8">
             Admin Dashboard
-          </motion.h1>
+          </h1>
           
-          {/* Action Cards - Updated with 3 cards */}
-          <motion.div 
-            variants={itemVariants}
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-8 max-w-6xl mx-auto mt-12"
-          >
+          {/* Action Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-8 max-w-6xl mx-auto mt-12">
             {/* Add Teachers Card */}
             <motion.div 
               className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-8 text-center cursor-pointer hover:bg-white/15 transition-all duration-300"
@@ -356,8 +265,6 @@ const AdminDashboard = () => {
               <p className="text-white/80 text-lg">Add new teaching staff to the platform</p>
             </motion.div>
 
-           
-
             {/* Certificate Management Card */}
             <motion.div 
               className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-8 text-center cursor-pointer hover:bg-white/15 transition-all duration-300"
@@ -369,37 +276,55 @@ const AdminDashboard = () => {
               <h3 className="text-2xl font-semibold mb-2">Certificate Management</h3>
               <p className="text-white/80 text-lg">Manage course certificates and awards</p>
             </motion.div>
-          </motion.div>
+          </div>
 
           {/* Quick Stats Section */}
-          <motion.div 
-            variants={itemVariants}
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mt-12"
-          >
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mt-12">
             {/* Teachers Count */}
             <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-6">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-white/70 text-sm">Total Teachers</p>
                   <p className="text-3xl font-bold mt-2">{teachers.length}</p>
+                  <p className="text-white/50 text-sm mt-1">
+                    Showing {currentTeachers.length} of {teachers.length}
+                  </p>
                 </div>
                 <Users className="w-12 h-12 text-yellow-400" />
               </div>
             </div>
-          </motion.div>
-
-         
+          </div>
 
           {/* Teachers List Section */}
-          <motion.div 
-            variants={itemVariants}
-            className="bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-8 mt-12"
-          >
+          <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-8 mt-12">
             <div className="flex justify-between items-center mb-8">
               <h3 className="text-2xl font-semibold">Registered Teachers</h3>
-              <span className="bg-white/10 px-3 py-1 rounded-full text-sm">
-                {teachers.length} teachers
-              </span>
+              <div className="flex items-center gap-4">
+                <span className="bg-white/10 px-3 py-1 rounded-full text-sm">
+                  {teachers.length} teachers total
+                </span>
+                {totalPages > 1 && (
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handlePrevPage}
+                      disabled={currentPage === 1}
+                      className="bg-white/10 hover:bg-white/20 p-2 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+                    <span className="text-sm">
+                      Page {currentPage} of {totalPages}
+                    </span>
+                    <button
+                      onClick={handleNextPage}
+                      disabled={currentPage === totalPages}
+                      className="bg-white/10 hover:bg-white/20 p-2 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
 
             {teachers.length === 0 ? (
@@ -409,54 +334,65 @@ const AdminDashboard = () => {
                 <p className="text-white/50">Click "Add Teachers" to get started</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {teachers.slice(0, 6).map((teacher, index) => (
-                  <motion.div
-                    key={teacher._id}
-                    className="bg-white/10 border border-white/20 rounded-xl p-6 flex items-center gap-4 hover:bg-white/15 transition-all duration-300"
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                    whileHover={{ y: -5 }}
-                  >
-                    <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
-                      <GraduationCap className="w-6 h-6 text-white" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-semibold text-lg truncate">{teacher.name}</h4>
-                      <p className="text-white/80 text-sm truncate">{teacher.email}</p>
-                      <p className="text-yellow-400 text-sm font-medium truncate">{teacher.course}</p>
-                      <div className="flex items-center gap-2 mt-2">
-                        <span className={`inline-block px-2 py-1 rounded-full text-xs font-semibold ${
-                          teacher.status === 'active' 
-                            ? 'bg-green-500/20 text-green-400 border border-green-400/50' 
-                            : 'bg-red-500/20 text-red-400 border border-red-400/50'
-                        }`}>
-                          {teacher.status || 'active'}
-                        </span>
-                        {teacher.qualification && (
-                          <span className="text-white/60 text-xs">
-                            {teacher.qualification}
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {currentTeachers.map((teacher, index) => (
+                    <motion.div
+                      key={teacher._id}
+                      className="bg-white/10 border border-white/20 rounded-xl p-6 flex items-center gap-4 hover:bg-white/15 transition-all duration-300"
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.1 }}
+                      whileHover={{ y: -5 }}
+                    >
+                      <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
+                        <GraduationCap className="w-6 h-6 text-white" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-semibold text-lg truncate">{teacher.name}</h4>
+                        <p className="text-white/80 text-sm truncate">{teacher.email}</p>
+                        <p className="text-yellow-400 text-sm font-medium truncate">{teacher.course}</p>
+                        <div className="flex items-center gap-2 mt-2">
+                          <span className={`inline-block px-2 py-1 rounded-full text-xs font-semibold ${
+                            teacher.status === 'active' 
+                              ? 'bg-green-500/20 text-green-400 border border-green-400/50' 
+                              : 'bg-red-500/20 text-red-400 border border-red-400/50'
+                          }`}>
+                            {teacher.status || 'active'}
                           </span>
+                          {teacher.qualification && (
+                            <span className="text-white/60 text-xs">
+                              {teacher.qualification}
+                            </span>
+                          )}
+                        </div>
+                        {teacher.years_of_experience && (
+                          <p className="text-white/60 text-xs mt-1">
+                            {teacher.years_of_experience} years experience
+                          </p>
                         )}
                       </div>
-                      {teacher.years_of_experience && (
-                        <p className="text-white/60 text-xs mt-1">
-                          {teacher.years_of_experience} years experience
-                        </p>
-                      )}
-                    </div>
-                    <button 
-                      className="bg-red-500/20 border border-red-500 text-red-400 w-8 h-8 rounded-lg flex items-center justify-center hover:bg-red-500 hover:text-white transition-all duration-300"
-                      onClick={() => setDeleteTeacherId(teacher._id)}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </motion.div>
-                ))}
-              </div>
+                      <button 
+                        className="bg-red-500/20 border border-red-500 text-red-400 w-8 h-8 rounded-lg flex items-center justify-center hover:bg-red-500 hover:text-white transition-all duration-300"
+                        onClick={() => setDeleteTeacherId(teacher._id)}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </motion.div>
+                  ))}
+                </div>
+                
+                {/* Pagination Info */}
+                {totalPages > 1 && (
+                  <div className="mt-8 pt-6 border-t border-white/10 text-center">
+                    <p className="text-white/70">
+                      Showing teachers {indexOfFirstTeacher + 1} to {Math.min(indexOfLastTeacher, teachers.length)} of {teachers.length}
+                    </p>
+                  </div>
+                )}
+              </>
             )}
-          </motion.div>
+          </div>
         </motion.div>
       </div>
 
@@ -470,23 +406,15 @@ const AdminDashboard = () => {
         )}
       </AnimatePresence>
 
-      {/* Add Course Form Modal */}
       {/* Credentials Info Box */}
       <AnimatePresence>
         {credentials && (
-          credentials.type === 'course' ? (
-            <CourseSuccessInfoBox 
-              credentials={credentials}
-              onClose={handleCloseCredentials}
-            />
-          ) : (
-            <CredentialsInfoBox 
-              credentials={credentials}
-              onClose={handleCloseCredentials}
-              onCopy={handleCopyToClipboard}
-              copiedField={copiedField}
-            />
-          )
+          <CredentialsInfoBox 
+            credentials={credentials}
+            onClose={handleCloseCredentials}
+            onCopy={handleCopyToClipboard}
+            copiedField={copiedField}
+          />
         )}
       </AnimatePresence>
 
@@ -503,7 +431,6 @@ const AdminDashboard = () => {
     </div>
   );
 };
-
 
 
 // Credentials Info Box Component (keep existing)
