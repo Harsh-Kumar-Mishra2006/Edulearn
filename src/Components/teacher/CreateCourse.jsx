@@ -2254,32 +2254,33 @@ const CreateCourseForm = ({ onClose, onSuccess }) => {
           </div>
           
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Course Category *
-            </label>
-            <select
-              name="course_category"
-              value={formData.course_category}
-              onChange={handleChange}
-              required
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-            >
-              <option value="web-development">Web Development</option>
-              <option value="microsoft-office">Microsoft Office </option>
-              <option value="c-programming">C Programming</option>
-              <option value="java">java</option>
-              <option value="php">php</option>
-              <option value="dbms">DBMS</option>
-              <option value="digital-marketing">Digital Marketing</option>
-              <option value="tally">Tally</option>
-              <option value="microsoft-word">Microsoft Word</option>
-              <option value="microsoft-excel">Microsoft Excel</option>
-              <option value="microsoft-powerPoint">Microsoft Powerpoint</option>
-              <option value="python">Python</option>
-              <option value="email-internet">Email & Internet</option>
-              <option value="canva">Canva</option>
-            </select>
-          </div>
+  <label className="block text-sm font-semibold text-gray-700 mb-2">
+    Course Category *
+  </label>
+  <select
+    name="course_category"
+    value={formData.course_category}
+    onChange={handleChange}
+    required
+    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+  >
+    <option value="">Select Category</option>
+    <option value="Web Development">Web Development</option>
+    <option value="Microsoft Office">Microsoft Office</option>
+    <option value="C Programming">C Programming</option>
+    <option value="Java">Java</option>
+    <option value="PHP">PHP</option>
+    <option value="DBMS">DBMS</option>
+    <option value="Digital Marketing">Digital Marketing</option>
+    <option value="Tally">Tally</option>
+    <option value="Microsoft Word">Microsoft Word</option>
+    <option value="Microsoft Excel">Microsoft Excel</option>
+    <option value="Microsoft PowerPoint">Microsoft PowerPoint</option>
+    <option value="Python">Python</option>
+    <option value="Email & Internet">Email & Internet</option>
+    <option value="Canva">Canva</option>
+  </select>
+</div>
           
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">
