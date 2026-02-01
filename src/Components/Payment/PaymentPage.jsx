@@ -83,11 +83,19 @@ const PaymentPage = () => {
   const isHardcodedCourse = (courseTitle) => {
     const hardcodedCourses = [
       'Web Development',
-      'Microsoft Office',
-      'Mobile App Development',
-      'UI/UX Design',
+      'Microsoft Office', 
+      'C Programming',
+      'java',
+      'php',
+      'DBMS',
       'Digital Marketing',
-      'Graphic Design'
+      'Tally',
+      'Microsoft Word',
+      'Microsoft Excel',
+      'Microsoft PowerPoint',
+      'Python',
+      'Email & Internet',
+      'Canva'
     ];
     return hardcodedCourses.includes(courseTitle);
   };
