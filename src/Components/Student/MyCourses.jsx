@@ -701,62 +701,79 @@ const MaterialCard = ({ material, courseId, onDeleteMaterial }) => {
   const isAvailable = material.isAvailable !== false;
 
   // In MaterialCard component, update these functions:
+// In MaterialCard component, remove the delete button:
+
+// Remove this button from the header:
+{/* <button
+  onClick={handleDelete}
+  className="p-1 text-gray-400 hover:text-red-600 transition-colors"
+  title="Delete material"
+>
+  <Trash2 className="h-4 w-4" />
+</button> */}
+
+// Update handleView and handleDownload functions:
 const handleView = () => {
   const url = isVideo ? material.video_url : material.file_url;
   
-  if (!url || !isAvailable) {
-    alert('This file is no longer available. Please contact the teacher to re-upload it.');
+  if (!url) {
+    alert('This file is not available for viewing.');
     return;
   }
 
-  // For Cloudinary URLs, they can be viewed directly
+  // For Cloudinary URLs
   if (url.includes('cloudinary.com')) {
-    // For PDFs, they'll open in browser PDF viewer
-    // For videos, they'll play in browser
-    // For images, they'll display
     window.open(url, '_blank');
   } else {
     // For other URLs
-    window.open(url, '_blank');
+    const fullUrl = url.startsWith('http') ? url : `https://edulearnbackend-ffiv.onrender.com${url}`;
+    window.open(fullUrl, '_blank');
   }
 };
 
 const handleDownload = () => {
+  const token = localStorage.getItem('token');
   const url = isVideo ? material.video_url : material.file_url;
   
-  if (!url || !isAvailable) {
-    alert('This file is no longer available. Please contact the teacher to re-upload it.');
+  if (!url) {
+    alert('This file is not available for download.');
     return;
   }
 
-  // For Cloudinary files, create downloadable URL
-  let downloadUrl = url;
-  
-  if (url.includes('cloudinary.com')) {
-    // Add fl_attachment flag for forced download
-    const filename = encodeURIComponent(material.title || 'document');
+  // Try backend download endpoint first
+  if (material.course_id && material._id) {
+    const endpoint = isVideo 
+      ? `/api/my-learning/download/video/${material.course_id}/${material._id}`
+      : `/api/my-learning/download/document/${material.course_id}/${material._id}`;
     
-    if (url.includes('/upload/')) {
-      // Replace or add the attachment flag
-      if (url.includes('fl_attachment')) {
-        // Update existing attachment flag
-        downloadUrl = url.replace(/fl_attachment[^/]*/, `fl_attachment:${filename}`);
-      } else {
-        // Add attachment flag
-        downloadUrl = url.replace('/upload/', `/upload/fl_attachment:${filename}/`);
+    // Create hidden iframe for download
+    const iframe = document.createElement('iframe');
+    iframe.style.display = 'none';
+    iframe.src = `https://edulearnbackend-ffiv.onrender.com${endpoint}`;
+    document.body.appendChild(iframe);
+    
+    setTimeout(() => {
+      if (document.body.contains(iframe)) {
+        document.body.removeChild(iframe);
       }
-    }
+    }, 5000);
+    
+    return;
   }
 
-  // Create download link
-  const link = document.createElement('a');
-  link.href = downloadUrl;
-  link.download = `${material.title || 'download'}.${material.file_type || (isVideo ? 'mp4' : 'pdf')}`;
-  link.target = '_blank';
-  
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
+  // Fallback to direct URL
+  if (url.includes('cloudinary.com')) {
+    const filename = encodeURIComponent(material.title || 'file');
+    let downloadUrl = url;
+    
+    if (url.includes('/upload/') && !url.includes('fl_attachment')) {
+      downloadUrl = url.replace('/upload/', `/upload/fl_attachment:${filename}/`);
+    }
+    
+    window.open(downloadUrl, '_blank');
+  } else {
+    window.open(url, '_blank');
+  }
 };
 
   const formatDate = (dateString) => {
@@ -799,13 +816,7 @@ const handleDownload = () => {
             )}
           </h5>
         </div>
-        <button
-          onClick={handleDelete}
-          className="p-1 text-gray-400 hover:text-red-600 transition-colors"
-          title="Delete material"
-        >
-          <Trash2 className="h-4 w-4" />
-        </button>
+        
       </div>
 
       {/* Description */}
