@@ -381,7 +381,7 @@ const CreateCourse = () => {
   );
 };
 
-// Upload Modal Component
+// Upload Modal Component - FIXED VERSION
 const UploadModal = ({ type, courses, onClose, onSuccess }) => {
   const [uploadData, setUploadData] = useState({
     title: '',
@@ -398,7 +398,12 @@ const UploadModal = ({ type, courses, onClose, onSuccess }) => {
   });
   const [file, setFile] = useState(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [message, setMessage] = useState({ type: '', text: '' });
+
+  // Cloudinary configuration
+  const CLOUDINARY_CLOUD_NAME = 'dpsssv5tg';
+  const CLOUDINARY_UPLOAD_PRESET = 'edulearn_preset'; // You need to create this in Cloudinary dashboard
 
   const handleFileChange = (e) => {
     const selectedFile = e.target.files[0];
@@ -409,6 +414,48 @@ const UploadModal = ({ type, courses, onClose, onSuccess }) => {
         ...prev,
         title: selectedFile.name.replace(/\.[^/.]+$/, "")
       }));
+    }
+  };
+
+  // Upload file directly to Cloudinary
+  const uploadToCloudinary = async () => {
+    if (!file) return null;
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+    
+    // Set folder based on type
+    const folder = type === 'video' ? 'course-videos' : 'course-documents';
+    formData.append('folder', folder);
+
+    // Add resource type
+    if (type === 'video') {
+      formData.append('resource_type', 'video');
+    }
+
+    try {
+      const response = await fetch(
+        `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/${type === 'video' ? 'video' : 'raw'}/upload`,
+        {
+          method: 'POST',
+          body: formData,
+          onUploadProgress: (progressEvent) => {
+            const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+            setUploadProgress(percentCompleted);
+          }
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Upload to Cloudinary failed');
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Cloudinary upload error:', error);
+      throw error;
     }
   };
 
@@ -436,11 +483,33 @@ const UploadModal = ({ type, courses, onClose, onSuccess }) => {
     }
 
     setUploading(true);
+    setUploadProgress(0);
     setMessage({ type: '', text: '' });
 
     try {
       const token = localStorage.getItem('token');
+      let cloudinaryResult = null;
+
+      // Step 1: Upload to Cloudinary first (for videos and documents)
+      if (type !== 'meeting') {
+        setMessage({ type: 'info', text: 'Uploading to Cloudinary...' });
+        cloudinaryResult = await uploadToCloudinary();
+        
+        if (!cloudinaryResult) {
+          throw new Error('Failed to upload to Cloudinary');
+        }
+        
+        console.log('Cloudinary upload successful:', cloudinaryResult);
+      }
+
+      // Step 2: Send metadata to your backend
+      setMessage({ type: 'info', text: 'Saving to database...' });
+
       let endpoint, method, body;
+      const headers = {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      };
 
       if (type === 'meeting') {
         // Meeting API call
@@ -457,30 +526,32 @@ const UploadModal = ({ type, courses, onClose, onSuccess }) => {
           passcode: uploadData.passcode
         });
       } else {
-        // File upload to Cloudinary API call
-        const formData = new FormData();
-        formData.append(type === 'video' ? 'video' : 'document', file);
-        formData.append('title', uploadData.title);
-        formData.append('description', uploadData.description);
-        formData.append('is_public', uploadData.is_public);
+        // Send Cloudinary data to backend
+        const requestBody = {
+          title: uploadData.title,
+          description: uploadData.description,
+          is_public: uploadData.is_public,
+          cloudinary_url: cloudinaryResult.secure_url,
+          cloudinary_public_id: cloudinaryResult.public_id,
+          file_size: cloudinaryResult.bytes,
+          mimetype: file.type,
+          original_name: file.name
+        };
 
         if (type === 'document') {
-          formData.append('document_type', uploadData.document_type);
+          requestBody.document_type = uploadData.document_type;
+          requestBody.file_extension = file.name.split('.').pop().toLowerCase();
+        }
+
+        if (type === 'video') {
+          requestBody.duration = '00:00'; // You might want to get actual duration
         }
 
         endpoint = type === 'video' 
           ? `${API_BASE_URL}/course-materials/courses/${uploadData.course_id}/videos`
           : `${API_BASE_URL}/course-materials/courses/${uploadData.course_id}/documents`;
         method = 'POST';
-        body = formData;
-      }
-
-      const headers = {
-        'Authorization': `Bearer ${token}`
-      };
-
-      if (type === 'meeting') {
-        headers['Content-Type'] = 'application/json';
+        body = JSON.stringify(requestBody);
       }
 
       const response = await fetch(endpoint, {
@@ -492,7 +563,7 @@ const UploadModal = ({ type, courses, onClose, onSuccess }) => {
       if (response.ok) {
         const successMessage = type === 'meeting' 
           ? 'Meeting scheduled successfully!' 
-          : `${type === 'video' ? 'Video' : 'Document'} uploaded to Cloudinary successfully!`;
+          : `${type === 'video' ? 'Video' : 'Document'} uploaded to Cloudinary and saved successfully!`;
         
         setMessage({ type: 'success', text: successMessage });
         setTimeout(() => {
@@ -500,12 +571,36 @@ const UploadModal = ({ type, courses, onClose, onSuccess }) => {
         }, 1500);
       } else {
         const errorData = await response.json();
-        setMessage({ type: 'error', text: errorData.error || `Failed to ${type === 'meeting' ? 'schedule meeting' : 'upload ' + type}` });
+        {/*
+        
+        // If backend save fails, try to delete from Cloudinary
+        if (cloudinaryResult && cloudinaryResult.public_id) {
+          try {
+            // Optional: Delete from Cloudinary if backend save fails
+            await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/${type === 'video' ? 'video' : 'raw'}/destroy`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                public_id: cloudinaryResult.public_id,
+                upload_preset: CLOUDINARY_UPLOAD_PRESET
+              })
+            });
+          } catch (deleteError) {
+            console.error('Error deleting from Cloudinary:', deleteError);
+          }
+        }
+      */}
+        
+        setMessage({ type: 'error', text: errorData.error || `Failed to ${type === 'meeting' ? 'schedule meeting' : 'save ' + type}` });
       }
     } catch (error) {
-      setMessage({ type: 'error', text: 'Network error occurred' });
+      console.error('Upload error:', error);
+      setMessage({ type: 'error', text: error.message || 'Network error occurred' });
     } finally {
       setUploading(false);
+      setUploadProgress(0);
     }
   };
 
@@ -562,7 +657,9 @@ const UploadModal = ({ type, courses, onClose, onSuccess }) => {
             <div className={`p-3 rounded-lg ${
               message.type === 'success' 
                 ? 'bg-green-100 text-green-800 border border-green-200' 
-                : 'bg-red-100 text-red-800 border border-red-200'
+                : message.type === 'error'
+                ? 'bg-red-100 text-red-800 border border-red-200'
+                : 'bg-blue-100 text-blue-800 border border-blue-200'
             }`}>
               {message.text}
             </div>
@@ -597,11 +694,11 @@ const UploadModal = ({ type, courses, onClose, onSuccess }) => {
               <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center hover:border-blue-500 transition-colors duration-200">
                 <input
                   type="file"
-                  accept={type === 'video' ? 'video/*' : '.pdf,.doc,.docx,.txt,.ppt,.pptx,.zip'}
+                  accept={type === 'video' ? 'video/*' : '.pdf,.doc,.docx,.txt,.ppt,.pptx,.zip,.jpg,.jpeg,.png'}
                   onChange={handleFileChange}
                   className="hidden"
                   id="file-upload"
-                  required
+                  required={type !== 'meeting'}
                 />
                 <label htmlFor="file-upload" className="cursor-pointer">
                   <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
@@ -609,9 +706,25 @@ const UploadModal = ({ type, courses, onClose, onSuccess }) => {
                     {file ? file.name : `Click to upload ${type === 'video' ? 'a video file' : 'a document'}`}
                   </p>
                   <p className="text-gray-400 text-sm mt-1">
-                    {type === 'video' ? 'MP4, MOV, AVI' : 'PDF, DOC, PPT, TXT, ZIP'}
+                    {type === 'video' ? 'MP4, MOV, AVI (Max 500MB)' : 'PDF, DOC, PPT, TXT, ZIP, Images (Max 100MB)'}
                   </p>
                 </label>
+              </div>
+            </div>
+          )}
+
+          {/* Upload Progress Bar */}
+          {uploading && uploadProgress > 0 && (
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm text-gray-600">
+                <span>Uploading to Cloudinary...</span>
+                <span>{uploadProgress}%</span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2.5">
+                <div 
+                  className="bg-blue-600 h-2.5 rounded-full transition-all duration-300"
+                  style={{ width: `${uploadProgress}%` }}
+                ></div>
               </div>
             </div>
           )}
@@ -770,6 +883,14 @@ const UploadModal = ({ type, courses, onClose, onSuccess }) => {
               <label htmlFor="is_public" className="text-sm font-semibold text-gray-700">
                 Make this {type} public
               </label>
+            </div>
+          )}
+
+          {/* Cloudinary Info Note */}
+          {type !== 'meeting' && (
+            <div className="bg-blue-50 p-3 rounded-lg text-sm text-blue-800">
+              <p className="font-semibold mb-1">📁 Cloudinary Upload</p>
+              <p>Your file will be uploaded to Cloudinary and automatically optimized for delivery.</p>
             </div>
           )}
 
