@@ -1265,27 +1265,41 @@ const playVideo = (video) => {
   // View document from Cloudinary
   // View document function
 // Replace the viewDocument function (around line 639)
-const viewDocument = (document) => {
-  const url = document.file_url;
+// View document function - FIXED
+// View document function - COMPLETELY FIXED
+const viewDocument = (doc) => {
+  const url = doc.file_url;
   
   if (!url) {
     showToast('This document is not available. Please re-upload it.', 'error');
     return;
   }
   
-  // Create a viewer modal
-  setDocumentViewer({
-    isOpen: true,
-    url: url,
-    title: document.title,
-    file_type: document.file_type
-  });
+  console.log('📄 Viewing document:', { title: doc.title, url, file_type: doc.file_type });
+  
+  // For PDFs and images, we can open in new tab directly
+  const isPdf = doc.file_type === 'pdf';
+  const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].includes(doc.file_type);
+  
+  if (isPdf || isImage) {
+    // Open in new tab for better viewing experience
+    window.open(url, '_blank');
+  } else {
+    // For other files, use the modal
+    setDocumentViewer({
+      isOpen: true,
+      url: url,
+      title: doc.title,
+      file_type: doc.file_type
+    });
+  }
 };
 // Download document function
 // Replace the downloadDocument function (around line 662)
-const downloadDocument = async (document) => {
+// Download document function - FIXED VERSION
+const downloadDocument = async (doc) => {  // ← renamed parameter to 'doc'
   try {
-    const url = document.file_url;
+    const url = doc.file_url;
     
     if (!url) {
       showToast('This file is not available. Please re-upload it.', 'error');
@@ -1293,32 +1307,37 @@ const downloadDocument = async (document) => {
     }
 
     // Extract filename from URL or use document title
-    let filename = document.title || 'document';
-    const fileExtension = document.file_type;
+    let filename = doc.title || 'document';
+    const fileExtension = doc.file_type;
     
     // Add extension if not present
-    if (!filename.toLowerCase().endsWith(`.${fileExtension}`)) {
+    if (fileExtension && !filename.toLowerCase().endsWith(`.${fileExtension}`)) {
       filename = `${filename}.${fileExtension}`;
     }
     
-    // Create a temporary link for download
-    const link = document.createElement('a');
-    link.href = url;
-    
-    // For Cloudinary files, add download parameter
+    // For Cloudinary files
+    let downloadUrl = url;
     if (url.includes('cloudinary.com')) {
       // Cloudinary supports forced download with flag
-      const downloadUrl = url.includes('fl_attachment') ? url : url.replace('/upload/', '/upload/fl_attachment/');
-      link.href = downloadUrl;
+      downloadUrl = url.includes('fl_attachment') ? url : url.replace('/upload/', '/upload/fl_attachment/');
     }
     
+    // Create a temporary link for download - using global document object
+    const link = window.document.createElement('a');  // ← explicitly use window.document
+    link.href = downloadUrl;
     link.download = filename;
     link.target = '_blank';
     link.rel = 'noopener noreferrer';
     
-    document.body.appendChild(link);
+    window.document.body.appendChild(link);
     link.click();
-    document.body.removeChild(link);
+    
+    // Clean up after a delay
+    setTimeout(() => {
+      if (window.document.body.contains(link)) {
+        window.document.body.removeChild(link);
+      }
+    }, 100);
     
     showToast('Download started!', 'success');
     
@@ -1327,7 +1346,6 @@ const downloadDocument = async (document) => {
     showToast('Failed to download document. Please try again.', 'error');
   }
 };
-
   // Toast notification function
   const showToast = (message, type = 'info') => {
     // Using alert for simplicity - you can replace with a proper toast library
@@ -1450,11 +1468,28 @@ const VideoPlayerModal = ({ isOpen, onClose, videoUrl, title }) => {
 };
 
 // Document Viewer Modal Component
+// Document Viewer Modal Component - FIXED
 const DocumentViewerModal = ({ isOpen, onClose, documentUrl, title, file_type }) => {
   if (!isOpen) return null;
   
   const isPDF = file_type === 'pdf';
   const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].includes(file_type);
+  
+  // For Cloudinary URLs, ensure they're properly formatted
+  const getViewerUrl = (url) => {
+    if (!url) return '';
+    
+    // For Cloudinary PDFs, ensure they open properly
+    if (url.includes('cloudinary.com') && isPDF) {
+      // Add flags for better PDF viewing
+      return url.includes('fl_attachment') 
+        ? url.replace('fl_attachment', 'fl_document_view') 
+        : url.replace('/upload/', '/upload/fl_document_view/');
+    }
+    return url;
+  };
+  
+  const viewerUrl = getViewerUrl(documentUrl);
   
   return (
     <motion.div
@@ -1474,7 +1509,7 @@ const DocumentViewerModal = ({ isOpen, onClose, documentUrl, title, file_type })
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-700">
           <h3 className="text-white font-semibold truncate">
-            {title} ({file_type.toUpperCase()})
+            {title} ({file_type?.toUpperCase() || 'FILE'})
           </h3>
           <div className="flex items-center gap-3">
             <button
@@ -1482,7 +1517,7 @@ const DocumentViewerModal = ({ isOpen, onClose, documentUrl, title, file_type })
               className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-1"
             >
               <ExternalLink className="w-3 h-3" />
-              Open
+              Open in New Tab
             </button>
             <button
               onClick={onClose}
@@ -1494,27 +1529,40 @@ const DocumentViewerModal = ({ isOpen, onClose, documentUrl, title, file_type })
         </div>
         
         {/* Document Viewer */}
-        <div className="flex-1 overflow-hidden p-2">
+        <div className="flex-1 overflow-hidden p-2 bg-gray-800">
           {isPDF ? (
             <iframe
-              src={documentUrl}
+              src={`${viewerUrl}#toolbar=1&navpanes=1`}
               className="w-full h-full rounded-lg bg-white"
               title={title}
               frameBorder="0"
+              allow="fullscreen"
             />
           ) : isImage ? (
-            <div className="w-full h-full flex items-center justify-center bg-black/20">
+            <div className="w-full h-full flex items-center justify-center bg-gray-800 overflow-auto">
               <img
-                src={documentUrl}
+                src={viewerUrl}
                 alt={title}
-                className="max-w-full max-h-full object-contain rounded-lg"
+                className="max-w-full max-h-full object-contain"
+                onError={(e) => {
+                  console.error('Image failed to load:', viewerUrl);
+                  e.target.style.display = 'none';
+                  e.target.parentElement.innerHTML = `
+                    <div class="text-center text-white">
+                      <p class="text-lg mb-2">Failed to load image</p>
+                      <button class="px-4 py-2 bg-blue-600 rounded-lg" onclick="window.open('${documentUrl}', '_blank')">
+                        Open Directly
+                      </button>
+                    </div>
+                  `;
+                }}
               />
             </div>
           ) : (
             <div className="w-full h-full flex items-center justify-center text-white">
               <div className="text-center">
                 <FileText className="w-16 h-16 mx-auto mb-4 text-gray-400" />
-                <p className="text-lg mb-2">This file cannot be previewed</p>
+                <p className="text-lg mb-2">This file type cannot be previewed</p>
                 <p className="text-gray-400 mb-4">Please download to view the content</p>
                 <a
                   href={documentUrl}
@@ -1522,17 +1570,30 @@ const DocumentViewerModal = ({ isOpen, onClose, documentUrl, title, file_type })
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors inline-flex items-center gap-2"
                 >
                   <Download className="w-4 h-4" />
-                  Download {file_type.toUpperCase()}
+                  Download {file_type?.toUpperCase() || 'FILE'}
                 </a>
               </div>
             </div>
           )}
         </div>
+        
+        {/* Footer with controls */}
+        <div className="p-4 border-t border-gray-700 flex justify-between items-center">
+          <div className="text-sm text-gray-400">
+            {isPDF && 'Use toolbar to zoom, download, or print'}
+            {isImage && 'Click and drag to pan • Scroll to zoom'}
+          </div>
+          <button
+            onClick={onClose}
+            className="px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors"
+          >
+            Close
+          </button>
+        </div>
       </motion.div>
     </motion.div>
   );
 };
-
   return (
     <motion.div
       className="bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-6 mt-6"

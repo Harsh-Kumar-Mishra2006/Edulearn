@@ -695,86 +695,20 @@ const CourseMaterials = ({
 };
 
 // Material Card Component
+// Material Card Component - FIXED VERSION
 const MaterialCard = ({ material, courseId, onDeleteMaterial }) => {
   const isVideo = material.type === 'video' || material.video_url;
   const isDocument = material.type === 'document' || material.file_url;
   const isAvailable = material.isAvailable !== false;
+  const [isLoading, setIsLoading] = useState(false);
 
-  // In MaterialCard component, update these functions:
-// In MaterialCard component, remove the delete button:
-
-// Remove this button from the header:
-{/* <button
-  onClick={handleDelete}
-  className="p-1 text-gray-400 hover:text-red-600 transition-colors"
-  title="Delete material"
->
-  <Trash2 className="h-4 w-4" />
-</button> */}
-
-// Update handleView and handleDownload functions:
-const handleView = () => {
-  const url = isVideo ? material.video_url : material.file_url;
-  
-  if (!url) {
-    alert('This file is not available for viewing.');
-    return;
-  }
-
-  // For Cloudinary URLs
-  if (url.includes('cloudinary.com')) {
-    window.open(url, '_blank');
-  } else {
-    // For other URLs
-    const fullUrl = url.startsWith('http') ? url : `https://edulearnbackend-ffiv.onrender.com${url}`;
-    window.open(fullUrl, '_blank');
-  }
-};
-
-const handleDownload = () => {
-  const token = localStorage.getItem('token');
-  const url = isVideo ? material.video_url : material.file_url;
-  
-  if (!url) {
-    alert('This file is not available for download.');
-    return;
-  }
-
-  // Try backend download endpoint first
-  if (material.course_id && material._id) {
-    const endpoint = isVideo 
-      ? `/api/my-learning/download/video/${material.course_id}/${material._id}`
-      : `/api/my-learning/download/document/${material.course_id}/${material._id}`;
-    
-    // Create hidden iframe for download
-    const iframe = document.createElement('iframe');
-    iframe.style.display = 'none';
-    iframe.src = `https://edulearnbackend-ffiv.onrender.com${endpoint}`;
-    document.body.appendChild(iframe);
-    
-    setTimeout(() => {
-      if (document.body.contains(iframe)) {
-        document.body.removeChild(iframe);
-      }
-    }, 5000);
-    
-    return;
-  }
-
-  // Fallback to direct URL
-  if (url.includes('cloudinary.com')) {
-    const filename = encodeURIComponent(material.title || 'file');
-    let downloadUrl = url;
-    
-    if (url.includes('/upload/') && !url.includes('fl_attachment')) {
-      downloadUrl = url.replace('/upload/', `/upload/fl_attachment:${filename}/`);
-    }
-    
-    window.open(downloadUrl, '_blank');
-  } else {
-    window.open(url, '_blank');
-  }
-};
+  const formatFileSize = (bytes) => {
+    if (!bytes) return 'N/A';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
 
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -784,11 +718,132 @@ const handleDownload = () => {
     });
   };
 
-  const handleDelete = (e) => {
-    e.stopPropagation();
-    const materialType = isVideo ? 'videos' : 'documents';
-    onDeleteMaterial(courseId, materialType, material._id, material.title);
+  const handleView = async () => {
+    if (!isAvailable) {
+      alert('This file is not available for viewing.');
+      return;
+    }
+
+    setIsLoading(true);
+    
+    try {
+      const token = localStorage.getItem('token');
+      const fileType = isVideo ? 'video' : 'document';
+      
+      // Use backend view endpoint
+      const viewUrl = `https://edulearnbackend-ffiv.onrender.com/api/student/mylearning/view/${courseId}/${material._id}/${fileType}`;
+      
+      // Open in new tab with authorization header
+      const xhr = new XMLHttpRequest();
+      xhr.open('GET', viewUrl, true);
+      xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      xhr.responseType = 'blob';
+      
+      xhr.onload = function() {
+        if (this.status === 200) {
+          const blob = this.response;
+          const blobUrl = URL.createObjectURL(blob);
+          window.open(blobUrl, '_blank');
+          setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
+        } else {
+          // If blob fails, try direct redirect
+          window.open(viewUrl, '_blank');
+        }
+        setIsLoading(false);
+      };
+      
+      xhr.onerror = function() {
+        // Fallback to direct URL
+        if (isVideo && material.video_url) {
+          window.open(material.video_url, '_blank');
+        } else if (material.file_url) {
+          window.open(material.file_url, '_blank');
+        } else {
+          alert('Unable to view file. Please try downloading instead.');
+        }
+        setIsLoading(false);
+      };
+      
+      xhr.send();
+      
+    } catch (error) {
+      console.error('View error:', error);
+      // Fallback to direct URL
+      if (isVideo && material.video_url) {
+        window.open(material.video_url, '_blank');
+      } else if (material.file_url) {
+        window.open(material.file_url, '_blank');
+      } else {
+        alert('Unable to view file. Please try downloading instead.');
+      }
+      setIsLoading(false);
+    }
   };
+
+  const handleDownload = async () => {
+  if (!isAvailable) {
+    alert('This file is not available for download.');
+    return;
+  }
+
+  setIsLoading(true);
+  
+  try {
+    const token = localStorage.getItem('token');
+    const endpoint = isVideo 
+      ? `/api/student/mylearning/download/video/${courseId}/${material._id}`
+      : `/api/student/mylearning/download/document/${courseId}/${material._id}`;
+    
+    const downloadUrl = `https://edulearnbackend-ffiv.onrender.com${endpoint}`;
+    
+    // Create a temporary iframe for download (handles redirects better)
+    const iframe = document.createElement('iframe');
+    iframe.style.display = 'none';
+    iframe.src = downloadUrl;
+    document.body.appendChild(iframe);
+    
+    // Add authorization header via fetch first to check
+    const response = await fetch(downloadUrl, {
+      method: 'HEAD',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    
+    if (response.ok) {
+      // If authorized, the iframe will handle the download
+      setTimeout(() => {
+        if (document.body.contains(iframe)) {
+          document.body.removeChild(iframe);
+        }
+      }, 5000);
+    } else {
+      // If HEAD request fails, try direct with token in URL (not recommended but works)
+      window.open(`${downloadUrl}?token=${token}`, '_blank');
+      document.body.removeChild(iframe);
+    }
+    
+  } catch (error) {
+    console.error('Download error:', error);
+    
+    // Last resort - try direct Cloudinary URL
+    if (isVideo && material.video_url) {
+      const url = material.video_url.includes('cloudinary.com') 
+        ? material.video_url.replace('/upload/', '/upload/fl_attachment/')
+        : material.video_url;
+      window.open(url, '_blank');
+    } else if (material.file_url) {
+      const url = material.file_url.includes('cloudinary.com')
+        ? material.file_url.replace('/upload/', '/upload/fl_attachment/')
+        : material.file_url;
+      window.open(url, '_blank');
+    } else {
+      alert('Download failed. Please try again.');
+    }
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   return (
     <motion.div
@@ -816,7 +871,6 @@ const handleDownload = () => {
             )}
           </h5>
         </div>
-        
       </div>
 
       {/* Description */}
@@ -844,21 +898,6 @@ const handleDownload = () => {
             <span className="capitalize">{material.document_type}</span>
           </div>
         )}
-        {material.is_public !== undefined && (
-          <div className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs ${
-            material.is_public 
-              ? 'bg-green-100 text-green-800' 
-              : 'bg-yellow-100 text-yellow-800'
-          }`}>
-            {material.is_public ? 'Public' : 'Private'}
-          </div>
-        )}
-        {material.video_url && material.video_url.includes('cloudinary.com') && (
-          <div className="flex items-center gap-1 text-blue-600">
-            <ExternalLink className="h-3 w-3" />
-            <span>Cloudinary</span>
-          </div>
-        )}
       </div>
 
       {/* Actions */}
@@ -867,22 +906,35 @@ const handleDownload = () => {
           <>
             <button
               onClick={handleView}
-              className="flex-1 bg-blue-600 text-white py-2 px-3 rounded text-sm font-medium hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+              disabled={isLoading}
+              className="flex-1 bg-blue-600 text-white py-2 px-3 rounded text-sm font-medium hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <ViewIcon className="h-4 w-4" />
-              View
+              {isLoading ? (
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+              ) : (
+                <>
+                  <ViewIcon className="h-4 w-4" />
+                  View
+                </>
+              )}
             </button>
             <button
               onClick={handleDownload}
-              className="flex-1 bg-green-600 text-white py-2 px-3 rounded text-sm font-medium hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
+              disabled={isLoading}
+              className="flex-1 bg-green-600 text-white py-2 px-3 rounded text-sm font-medium hover:bg-green-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <Download className="h-4 w-4" />
-              Download
+              {isLoading ? (
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+              ) : (
+                <>
+                  <Download className="h-4 w-4" />
+                  Download
+                </>
+              )}
             </button>
           </>
         ) : (
           <button
-            onClick={handleView}
             disabled
             className="flex-1 bg-gray-300 text-gray-500 py-2 px-3 rounded text-sm font-medium cursor-not-allowed flex items-center justify-center gap-2"
           >
@@ -891,13 +943,6 @@ const handleDownload = () => {
           </button>
         )}
       </div>
-      
-      {/* Debug info (remove in production) */}
-      {process.env.NODE_ENV === 'development' && (
-        <div className="mt-2 text-xs text-gray-400 truncate">
-          URL: {isVideo ? material.video_url : material.file_url}
-        </div>
-      )}
     </motion.div>
   );
 };
