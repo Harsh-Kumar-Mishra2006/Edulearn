@@ -91,65 +91,45 @@ const MyLearning = () => {
   };
 
 // ADD THIS FUNCTION - Use backend download endpoints
-const downloadFile = async (material, isVideo = false) => {
-  try {
-    const token = localStorage.getItem('token');
-    
-    // Method 1: Use your backend download endpoints
-    if (material.course_id && material._id) {
-      const endpoint = isVideo 
-        ? `/api/my-learning/download/video/${material.course_id}/${material._id}`
-        : `/api/my-learning/download/document/${material.course_id}/${material._id}`;
-      
-      // Create hidden iframe to trigger download
-      const iframe = document.createElement('iframe');
-      iframe.style.display = 'none';
-      iframe.src = `https://edulearnbackend-ffiv.onrender.com${endpoint}`;
-      
-      // Add token as header via URL parameter (not ideal but works)
-      iframe.src += `?token=${encodeURIComponent(token)}`;
-      
-      document.body.appendChild(iframe);
-      
-      // Remove iframe after some time
-      setTimeout(() => {
-        if (document.body.contains(iframe)) {
-          document.body.removeChild(iframe);
-        }
-      }, 5000);
-      
-      return;
-    }
-    
-    // Method 2: Direct Cloudinary fallback
-    if (material.file_url || material.video_url) {
-      const url = isVideo ? material.video_url : material.file_url;
-      
-      // If it's a Cloudinary URL, add forced download flag
-      if (url.includes('cloudinary.com')) {
-        const filename = encodeURIComponent(material.title || 'file');
-        let downloadUrl = url;
-        
-        if (url.includes('/upload/') && !url.includes('fl_attachment')) {
-          downloadUrl = url.replace('/upload/', `/upload/fl_attachment:${filename}/`);
-        }
-        
-        window.open(downloadUrl, '_blank');
-      } else {
-        // Direct URL
+// FIXED downloadFile function
+// FIXED downloadFile function
+// ENHANCED download function with better filename
+const downloadFile = (material, isVideo = false) => {
+  const url = isVideo ? material.video_url : material.file_url;
+  
+  if (!url) {
+    alert('File not available');
+    return;
+  }
+
+  // Create filename
+  const filename = material.title || 'download';
+  const extension = material.file_type || (isVideo ? 'mp4' : 'pdf');
+  const fullFilename = `${filename}.${extension}`;
+
+  // For Cloudinary, use their download flag
+  if (url.includes('cloudinary.com')) {
+    // Method 1: Using fetch and blob (more reliable but requires CORS)
+    fetch(url)
+      .then(response => response.blob())
+      .then(blob => {
+        const blobUrl = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.download = fullFilename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(blobUrl);
+      })
+      .catch(() => {
+        // Fallback to direct URL if fetch fails
         window.open(url, '_blank');
-      }
-    } else {
-      alert('File not available for download.');
-    }
-    
-  } catch (error) {
-    console.error('Download error:', error);
-    alert('Download failed: ' + error.message);
+      });
+  } else {
+    window.open(url, '_blank');
   }
 };
-
-
   // Helper function to get correct URL for material
 const getMaterialUrl = (url) => {
   if (!url) return null;
@@ -652,27 +632,29 @@ onClick={() => {
 
                             <div className="flex gap-2">
                               <button
-                                // Change the View Document button onClick to:
-onClick={() => {
-  if (document.file_url) {
-    // Direct Cloudinary URL - will open in browser
-    window.open(document.file_url, '_blank');
-  } else {
-    alert('Document is not available for viewing.');
-  }
-}}
-                                className="flex-1 bg-gray-600 text-white py-2 px-3 rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors flex items-center justify-center gap-2"
-                              >
-                                <Eye className="w-4 h-4" />
-                                View Document
-                              </button>
+  onClick={() => {
+    if (document.file_url) {
+      // Direct Cloudinary URL - opens in browser
+      window.open(document.file_url, '_blank');
+      
+      // Mark as completed if needed
+      markAsCompleted(selectedCategory.course_category, 'documents', document._id);
+    } else {
+      alert('Document is not available for viewing.');
+    }
+  }}
+  className="flex-1 bg-gray-600 text-white py-2 px-3 rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors flex items-center justify-center gap-2"
+>
+  <Eye className="w-4 h-4" />
+  View Document
+</button>
                               <button
-                                onClick={() => downloadFile(document, false)}
-                                className="flex-1 bg-green-600 text-white py-2 px-3 rounded-lg text-sm font-medium hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
-                              >
-                                <Download className="w-4 h-4" />
-                                Download
-                              </button>
+  onClick={() => downloadFile(document, false)}
+  className="flex-1 bg-green-600 text-white py-2 px-3 rounded-lg text-sm font-medium hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
+>
+  <Download className="w-4 h-4" />
+  Download
+</button>
                             </div>
                           </motion.div>
                         ))}
