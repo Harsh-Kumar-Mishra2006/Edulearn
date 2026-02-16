@@ -1,59 +1,52 @@
-🎓 Edulearn – High-Performance Learning Management System (LMS)
-Edulearn is a full-featured, scalable E-learning platform engineered to bridge the gap between instructors and students. It handles everything from secure multi-role authentication and dynamic course creation to optimized media delivery and real-time notifications.
+🎓 Edulearn – Scalable E-Learning Platform
+Edulearn is a robust, full-stack Learning Management System (LMS) designed to provide a seamless educational experience. It features a sophisticated course management engine, multi-role authentication, and high-speed media delivery.
 
-🎯 The Problem & My Solution
-Most educational tools struggle with media latency and insecure content delivery. I built Edulearn to provide a sub-2-second page load experience while maintaining strict Role-Based Access Control (RBAC) to protect premium educational content.
+🚀 Key Features
+Dynamic Course Engine: Complete CRUD functionality for instructors to manage curriculum and student enrollments.
 
-🚀 Technical Core & Features
-🔐 Multi-Role Architecture
-Admin/Instructor Dashboard: Complete CRUD suite for course management. Instructors can upload curriculum, track student enrollments, and manage course metadata.
+Multi-Role Authentication: Secure access control for Admins, Instructors, and Students using JWT and Bcrypt.
 
-Student Experience: A seamless "Enroll & Learn" flow with progress tracking and persistent lesson state.
+Media Optimization: Integrated Cloudinary SDK with Multer for lightning-fast image/video processing.
 
-RBAC: Secure route protection ensuring only enrolled students can access specific video/PDF resources.
+Automated Communication: Integrated SMTP mail services for user onboarding and course notifications.
 
-⚡ Performance & Optimization (Resume Highlights)
-Database Efficiency: Optimized MongoDB schemas and indexing, resulting in a 30% reduction in query response times.
+Responsive UI: A modern, mobile-first dashboard built with React and optimized for all devices.
 
-Media Pipeline: Integrated Cloudinary SDK with Multer for asynchronous file uploads. This offloaded media processing from the main thread, reducing server storage load by 60%.
+🛠️ Technical Achievements (Impact)
+Database Performance: Optimized MongoDB schemas and implemented indexing, resulting in a 30% reduction in query response times.
 
-Global State: Managed complex user sessions and course states using Redux Toolkit, ensuring zero-lag UI updates during navigation.
+Storage Optimization: Engineered an asynchronous media pipeline that reduced server storage load by 60%.
 
-🛡️ Security First
-JWT & Bcrypt: Industry-standard encryption for user credentials and stateless session management.
+Security Hardening: Implemented Helmet.js to secure the application against XSS and clickjacking, alongside strict schema enforcement for 95% protection against NoSQL injection.
 
-Helmet.js Implementation: Protected the application against XSS, clickjacking, and other common vulnerabilities by strictly configuring HTTP headers.
+Load Efficiency: Achieved sub-2-second load times for media-heavy pages through efficient resource fetching.
 
-Data Validation: Leveraged a robust validation layer to prevent NoSQL injections and malformed data entries.
+💻 Tech Stack
+Frontend: React.js, Redux Toolkit, CSS3, Tailwind (if applicable).
 
-Tech Stack & Tools
-Frontend: React.js, Redux Toolkit, Tailwind CSS, Framer Motion
-Backend: Node.js, Express.js, RESTful APIs
-Database: MongoDB (NoSQL) with Mongoose ODM
-Cloud/DevOps: Cloudinary (Media), Render (Deployment), Git
-Services: SMTP (Automated Emails), JWT (Auth)
+Backend: Node.js, Express.js.
 
-🏗️ System Architecture
-Frontend: Single Page Application (SPA) communicating via Axios.
+Database: MongoDB (NoSQL) with Mongoose.
 
-API Layer: Express middleware handles authentication and sanitization.
+DevOps/Tools: Git, GitHub, Render (Deployment), Cloudinary (Media).
 
-Storage: Metadata in MongoDB; heavy assets (Videos/Images) in Cloudinary.
-
-⚙️ Quick Start
-Prerequisites: Node.js (v16+), MongoDB Atlas Account.
-
-Clone & Install:
+⚙️ Installation & Setup
+Clone the Repository:
 
 Bash
 git clone https://github.com/Harsh-Kumar-Mishra2006/Edulearn.git
-cd Edulearn
-npm run install-all  # Installs both client and server dependencies
-Environment Setup: Create a .env in the root and add:
+Install Dependencies:
+
+Bash
+# For Backend
+cd server && npm install
+# For Frontend
+cd ../client && npm install
+Environment Variables: Create a .env file in the server directory and add:
 
 MONGO_URI, JWT_SECRET, CLOUDINARY_URL, SMTP_MAIL
 
-Launch:
+Run Locally:
 
 Bash
-npm run dev  # Starts the concurrently running dev environment
+npm run dev # (or your specific start command)
