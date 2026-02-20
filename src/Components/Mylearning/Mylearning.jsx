@@ -1,3 +1,4 @@
+// Mylearning.jsx - WITH DUAL DOCUMENT SUPPORT
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -18,8 +19,13 @@ import {
   Bookmark,
   GraduationCap,
   User,
-  File
+  File,
+  Cloud,
+  HardDrive,
+  AlertCircle
 } from 'lucide-react';
+
+const API_BASE_URL = 'https://edulearnbackend-ffiv.onrender.com/api';
 
 const MyLearning = () => {
   const [learningData, setLearningData] = useState([]);
@@ -28,17 +34,17 @@ const MyLearning = () => {
   const [activeTab, setActiveTab] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [progressData, setProgressData] = useState({});
+  const [downloadLoading, setDownloadLoading] = useState({});
 
   useEffect(() => {
     fetchMyLearningCourses();
     fetchLearningProgress();
   }, []);
-  
 
   const fetchMyLearningCourses = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('https://edulearnbackend-ffiv.onrender.com/api/my-learning/courses', {
+      const response = await fetch(`${API_BASE_URL}/my-learning/courses`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -47,10 +53,9 @@ const MyLearning = () => {
 
       if (response.ok) {
         const data = await response.json();
-        console.log('Learning data received:', data); // Debug log
+        console.log('Learning data received:', data);
         setLearningData(data.data || []);
         
-        // Auto-select first category if available
         if (data.data && data.data.length > 0) {
           setSelectedCategory(data.data[0]);
         }
@@ -69,7 +74,7 @@ const MyLearning = () => {
   const fetchLearningProgress = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(' https://edulearnbackend-ffiv.onrender.com/api/my-learning/progress', {
+      const response = await fetch(`${API_BASE_URL}/my-learning/progress`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -78,7 +83,6 @@ const MyLearning = () => {
 
       if (response.ok) {
         const data = await response.json();
-        // Convert array to object for easier access
         const progressObj = {};
         data.data?.forEach(item => {
           progressObj[item.course_category] = item;
@@ -90,144 +94,170 @@ const MyLearning = () => {
     }
   };
 
-// ADD THIS FUNCTION - Use backend download endpoints
-// FIXED downloadFile function
-// FIXED downloadFile function
-// ENHANCED download function with better filename
-const downloadFile = (material, isVideo = false) => {
-  const url = isVideo ? material.video_url : material.file_url;
-  
-  if (!url) {
-    alert('File not available');
-    return;
-  }
+  // SMART DOWNLOAD FUNCTION - Tries Cloudinary first, falls back to local
+  const handleDocumentDownload = async (document) => {
+    const docId = document._id;
+    setDownloadLoading(prev => ({ ...prev, [docId]: true }));
 
-  // Create filename
-  const filename = material.title || 'download';
-  const extension = material.file_type || (isVideo ? 'mp4' : 'pdf');
-  const fullFilename = `${filename}.${extension}`;
-
-  // For Cloudinary, use their download flag
-  if (url.includes('cloudinary.com')) {
-    // Method 1: Using fetch and blob (more reliable but requires CORS)
-    fetch(url)
-      .then(response => response.blob())
-      .then(blob => {
-        const blobUrl = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = blobUrl;
-        link.download = fullFilename;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(blobUrl);
-      })
-      .catch(() => {
-        // Fallback to direct URL if fetch fails
-        window.open(url, '_blank');
-      });
-  } else {
-    window.open(url, '_blank');
-  }
-};
-  // Helper function to get correct URL for material
-const getMaterialUrl = (url) => {
-  if (!url) return null;
-  
-  // If it's already a full Cloudinary URL, return as-is
-  if (url.includes('res.cloudinary.com')) {
-    return url;
-  }
-  
-  // If it's a Cloudinary public_id without full URL
-  if (url.includes('cloudinary.com') && !url.startsWith('http')) {
-    return `https://res.cloudinary.com/dpsssv5tg/raw/upload/${url}`;
-  }
-  
-  // For old server uploads (shouldn't exist anymore)
-  if (!url.startsWith('http')) {
-    return `https://edulearnbackend-ffiv.onrender.com${url}`;
-  }
-  
-  return url;
-};
-
-  const markAsCompleted = async (category, materialType, materialId) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`https://edulearnbackend-ffiv.onrender.com/api/my-learning/progress/${category}/${materialType}/${materialId}`, {
-        method: 'POST',
+      
+      // Step 1: Try the smart download endpoint (tries Cloudinary, falls back to local)
+      const downloadUrl = `${API_BASE_URL}/documents/courses/${document.course_id}/documents/${docId}/download`;
+      
+      console.log('📥 Attempting smart download via:', downloadUrl);
+      
+      // Create a temporary iframe for download (handles redirects well)
+      const iframe = document.createElement('iframe');
+      iframe.style.display = 'none';
+      iframe.src = downloadUrl;
+      
+      // Add authorization header via fetch first to check
+      const response = await fetch(downloadUrl, {
+        method: 'HEAD',
         headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
+          'Authorization': `Bearer ${token}`
         }
       });
 
       if (response.ok) {
-        // Refresh both data
+        document.body.appendChild(iframe);
+        
+        // Get filename from Content-Disposition header or use title
+        const contentDisposition = response.headers.get('Content-Disposition');
+        let filename = document.title || 'document';
+        if (document.file_type) {
+          filename = `${filename}.${document.file_type}`;
+        }
+        
+        setTimeout(() => {
+          if (document.body.contains(iframe)) {
+            document.body.removeChild(iframe);
+          }
+        }, 5000);
+        
+        // Mark as completed
+        markAsCompleted(selectedCategory.course_category, 'documents', docId);
+      } else {
+        // If HEAD request fails, try direct Cloudinary URL with download flag
+        if (document.file_url && document.file_url.includes('cloudinary.com')) {
+          const cloudinaryUrl = document.file_url.includes('fl_attachment') 
+            ? document.file_url 
+            : document.file_url.replace('/upload/', '/upload/fl_attachment/');
+          
+          window.open(cloudinaryUrl, '_blank');
+        } else if (document.file_url) {
+          window.open(document.file_url, '_blank');
+        } else {
+          throw new Error('No valid download URL found');
+        }
+      }
+    } catch (error) {
+      console.error('Download error:', error);
+      
+      // Final fallback - try direct Cloudinary URL
+      if (document.file_url && document.file_url.includes('cloudinary.com')) {
+        const fallbackUrl = document.file_url.includes('fl_attachment') 
+          ? document.file_url 
+          : document.file_url.replace('/upload/', '/upload/fl_attachment/');
+        window.open(fallbackUrl, '_blank');
+      } else if (document.file_url) {
+        window.open(document.file_url, '_blank');
+      } else {
+        alert('Download failed. Please try again or contact support.');
+      }
+    } finally {
+      setDownloadLoading(prev => ({ ...prev, [docId]: false }));
+    }
+  };
+
+  // VIEW DOCUMENT FUNCTION - Opens in browser with fallback
+  const handleDocumentView = (document) => {
+    const url = document.file_url;
+    
+    if (!url) {
+      alert('Document is not available for viewing.');
+      return;
+    }
+
+    console.log('👁️ Viewing document:', { title: document.title, url });
+    
+    // For Cloudinary URLs, ensure proper viewing
+    let viewUrl = url;
+    if (url.includes('cloudinary.com') && document.file_type === 'pdf') {
+      // PDFs work better with specific flags
+      viewUrl = url.includes('fl_attachment') 
+        ? url.replace('fl_attachment', 'fl_document_view')
+        : url.replace('/upload/', '/upload/fl_document_view/');
+    }
+    
+    // Open in new tab
+    window.open(viewUrl, '_blank');
+    
+    // Mark as completed after viewing
+    markAsCompleted(selectedCategory.course_category, 'documents', document._id);
+  };
+
+  // VIDEO VIEW FUNCTION
+  const handleVideoView = (video) => {
+    if (!video.video_url) {
+      alert('Video is not available for viewing.');
+      return;
+    }
+    
+    window.open(video.video_url, '_blank');
+    markAsCompleted(selectedCategory.course_category, 'videos', video._id);
+  };
+
+  // VIDEO DOWNLOAD FUNCTION
+  const handleVideoDownload = async (video) => {
+    setDownloadLoading(prev => ({ ...prev, [video._id]: true }));
+    
+    try {
+      if (video.video_url && video.video_url.includes('cloudinary.com')) {
+        // Add download flag to Cloudinary URL
+        const downloadUrl = video.video_url.includes('fl_attachment')
+          ? video.video_url
+          : video.video_url.replace('/upload/', '/upload/fl_attachment/');
+        
+        window.open(downloadUrl, '_blank');
+      } else if (video.video_url) {
+        window.open(video.video_url, '_blank');
+      } else {
+        alert('Video download not available.');
+      }
+      
+      markAsCompleted(selectedCategory.course_category, 'videos', video._id);
+    } catch (error) {
+      console.error('Video download error:', error);
+      alert('Failed to download video. Please try again.');
+    } finally {
+      setDownloadLoading(prev => ({ ...prev, [video._id]: false }));
+    }
+  };
+
+  const markAsCompleted = async (category, materialType, materialId) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(
+        `${API_BASE_URL}/my-learning/progress/${category}/${materialType}/${materialId}`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      if (response.ok) {
         fetchMyLearningCourses();
         fetchLearningProgress();
-      } else {
-        console.error('Failed to mark as completed');
       }
     } catch (error) {
       console.error('Error marking as completed:', error);
     }
   };
-
-  const downloadDocument = async (document) => {
-  try {
-    let fileUrl = document.file_url;
-    
-    if (!fileUrl) {
-      alert('This document is not available for download.');
-      return;
-    }
-
-    // For Cloudinary URLs, create downloadable version
-    if (fileUrl.includes('cloudinary.com')) {
-      // Create forced download URL for Cloudinary
-      const filename = encodeURIComponent(document.title || 'document');
-      
-      // Check if it's already a download URL
-      if (!fileUrl.includes('fl_attachment')) {
-        // Add download flag to Cloudinary URL
-        if (fileUrl.includes('/upload/')) {
-          fileUrl = fileUrl.replace('/upload/', `/upload/fl_attachment:${filename}/`);
-        }
-      }
-    } 
-    // For old server uploads (if any exist)
-    else if (!fileUrl.startsWith('http')) {
-      // This shouldn't happen with Cloudinary, but keep as fallback
-      fileUrl = `https://edulearnbackend-ffiv.onrender.com${fileUrl}`;
-    }
-
-    console.log('📥 Download URL:', fileUrl);
-    
-    // Method 1: Create link and click (works best for Cloudinary)
-    const link = document.createElement('a');
-    link.href = fileUrl;
-    link.download = `${document.title || 'download'}.${document.file_type || 'pdf'}`;
-    link.target = '_blank';
-    link.rel = 'noopener noreferrer';
-    
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    alert('Download started! The file should open in a new tab or start downloading.');
-    
-  } catch (error) {
-    console.error('Download error:', error);
-    
-    // Fallback: Open in new tab
-    const fileUrl = document.file_url?.startsWith('http') 
-      ? document.file_url 
-      : `https://edulearnbackend-ffiv.onrender.com${document.file_url}`;
-    window.open(fileUrl, '_blank');
-  }
-};
 
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
@@ -275,6 +305,20 @@ const getMaterialUrl = (url) => {
            (category.materials?.documents?.length || 0) + 
            (category.materials?.meetings?.length || 0)
     };
+  };
+
+  // Storage indicator component
+  const StorageIndicator = ({ document }) => {
+    const hasCloudinary = document.file_url?.includes('cloudinary.com');
+    const hasLocal = document.local_file?.exists;
+    
+    return (
+      <div className="flex items-center gap-1 text-xs" title={`Storage: ${hasCloudinary ? 'Cloudinary' : ''} ${hasLocal ? 'Local' : ''}`}>
+        {hasCloudinary && <Cloud className="w-3 h-3 text-blue-500" />}
+        {hasLocal && <HardDrive className="w-3 h-3 text-gray-500" />}
+        {!hasCloudinary && !hasLocal && <AlertCircle className="w-3 h-3 text-red-500" />}
+      </div>
+    );
   };
 
   if (loading) {
@@ -548,23 +592,25 @@ const getMaterialUrl = (url) => {
 
                             <div className="flex gap-2">
                               <button
-                                // Change the Watch Video button onClick to:
-// For Watch Video button:
-onClick={() => {
-  if (video.video_url) {
-    // Use the video_url directly (it's already a Cloudinary URL)
-    window.open(video.video_url, '_blank');
-    
-    // Mark as completed
-    markAsCompleted(selectedCategory.course_category, 'videos', video._id);
-  } else {
-    alert('Video is not available for viewing.');
-  }
-}}
+                                onClick={() => handleVideoView(video)}
                                 className="flex-1 bg-blue-600 text-white py-2 px-3 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
                               >
                                 <PlayCircle className="w-4 h-4" />
                                 Watch Video
+                              </button>
+                              <button
+                                onClick={() => handleVideoDownload(video)}
+                                disabled={downloadLoading[video._id]}
+                                className="flex-1 bg-green-600 text-white py-2 px-3 rounded-lg text-sm font-medium hover:bg-green-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                              >
+                                {downloadLoading[video._id] ? (
+                                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                ) : (
+                                  <>
+                                    <Download className="w-4 h-4" />
+                                    Download
+                                  </>
+                                )}
                               </button>
                             </div>
                           </motion.div>
@@ -573,7 +619,7 @@ onClick={() => {
                     </div>
                   )}
 
-                  {/* Documents Section */}
+                  {/* Documents Section - UPDATED WITH DUAL STORAGE SUPPORT */}
                   {(activeTab === 'all' || activeTab === 'documents') && selectedCategory.materials?.documents?.length > 0 && (
                     <div>
                       <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
@@ -597,7 +643,11 @@ onClick={() => {
                           >
                             <div className="flex items-start justify-between mb-3">
                               <div className="flex-1">
-                                <h4 className="font-semibold text-gray-900">{document.title || 'Untitled Document'}</h4>
+                                <div className="flex items-center gap-2">
+                                  <h4 className="font-semibold text-gray-900">{document.title || 'Untitled Document'}</h4>
+                                  {/* Storage Indicator */}
+                                  <StorageIndicator document={document} />
+                                </div>
                                 <p className="text-sm text-gray-600 mt-1">by {document.teacher_name || 'Unknown Teacher'}</p>
                                 <p className="text-xs text-gray-500">Course: {document.course_title || 'Unknown Course'}</p>
                               </div>
@@ -632,29 +682,41 @@ onClick={() => {
 
                             <div className="flex gap-2">
                               <button
-  onClick={() => {
-    if (document.file_url) {
-      // Direct Cloudinary URL - opens in browser
-      window.open(document.file_url, '_blank');
-      
-      // Mark as completed if needed
-      markAsCompleted(selectedCategory.course_category, 'documents', document._id);
-    } else {
-      alert('Document is not available for viewing.');
-    }
-  }}
-  className="flex-1 bg-gray-600 text-white py-2 px-3 rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors flex items-center justify-center gap-2"
->
-  <Eye className="w-4 h-4" />
-  View Document
-</button>
+                                onClick={() => handleDocumentView(document)}
+                                className="flex-1 bg-gray-600 text-white py-2 px-3 rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors flex items-center justify-center gap-2"
+                              >
+                                <Eye className="w-4 h-4" />
+                                View Document
+                              </button>
                               <button
-  onClick={() => downloadFile(document, false)}
-  className="flex-1 bg-green-600 text-white py-2 px-3 rounded-lg text-sm font-medium hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
->
-  <Download className="w-4 h-4" />
-  Download
-</button>
+                                onClick={() => handleDocumentDownload(document)}
+                                disabled={downloadLoading[document._id]}
+                                className="flex-1 bg-green-600 text-white py-2 px-3 rounded-lg text-sm font-medium hover:bg-green-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                              >
+                                {downloadLoading[document._id] ? (
+                                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                ) : (
+                                  <>
+                                    <Download className="w-4 h-4" />
+                                    Download
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                            
+                            {/* Storage info tooltip */}
+                            <div className="mt-2 text-xs text-gray-400 flex items-center gap-2">
+                              {document.file_url?.includes('cloudinary.com') ? (
+                                <span className="flex items-center gap-1">
+                                  <Cloud className="w-3 h-3" /> Cloudinary CDN
+                                </span>
+                              ) : (
+                                <span className="flex items-center gap-1">
+                                  <HardDrive className="w-3 h-3" /> Local Storage
+                                </span>
+                              )}
+                              <span>•</span>
+                              <span>Smart fallback enabled</span>
                             </div>
                           </motion.div>
                         ))}

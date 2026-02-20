@@ -17,6 +17,8 @@ import {
   Download,
   PlayCircle,
   Clock,
+  Cloud,
+  HardDrive,
   CheckCircle,
   Calendar,
   Link,
@@ -382,6 +384,7 @@ const CreateCourse = () => {
 };
 
 // Upload Modal Component - FIXED VERSION
+// Updated UploadModal Component for CreateCourse.jsx
 const UploadModal = ({ type, courses, onClose, onSuccess }) => {
   const [uploadData, setUploadData] = useState({
     title: '',
@@ -400,6 +403,7 @@ const UploadModal = ({ type, courses, onClose, onSuccess }) => {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [message, setMessage] = useState({ type: '', text: '' });
+  const [uploadStage, setUploadStage] = useState(''); // 'cloudinary', 'local', 'complete'
 
   // Cloudinary configuration
   const CLOUDINARY_CLOUD_NAME = 'dpsssv5tg';
@@ -432,18 +436,16 @@ const UploadModal = ({ type, courses, onClose, onSuccess }) => {
     // Add resource type
     if (type === 'video') {
       formData.append('resource_type', 'video');
+    } else {
+      formData.append('resource_type', 'auto');
     }
 
     try {
       const response = await fetch(
-        `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/${type === 'video' ? 'video' : 'raw'}/upload`,
+        `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/${type === 'video' ? 'video' : 'auto'}/upload`,
         {
           method: 'POST',
-          body: formData,
-          onUploadProgress: (progressEvent) => {
-            const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-            setUploadProgress(percentCompleted);
-          }
+          body: formData
         }
       );
 
@@ -459,26 +461,157 @@ const UploadModal = ({ type, courses, onClose, onSuccess }) => {
     }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleDocumentSubmit = async (e) => {
+  e.preventDefault();
+  
+  // Validate file
+  if (!file) {
+    setMessage({ type: 'error', text: 'Please select a file' });
+    return;
+  }
+
+  // Validate course
+  if (!uploadData.course_id) {
+    setMessage({ type: 'error', text: 'Please select a course' });
+    return;
+  }
+
+  // Get token
+  const token = localStorage.getItem('token');
+  if (!token) {
+    setMessage({ type: 'error', text: 'Authentication required' });
+    return;
+  }
+
+  // Debug logs
+  console.log('📦 Document Upload Debug:');
+  console.log('Course ID:', uploadData.course_id);
+  console.log('Course ID length:', uploadData.course_id?.length);
+  console.log('File:', file?.name);
+  console.log('File size:', file?.size);
+  console.log('Token exists:', !!token);
+
+  // Validate course ID format (MongoDB ObjectId is 24 characters)
+  if (!uploadData.course_id || uploadData.course_id.length !== 24) {
+    setMessage({ type: 'error', text: 'Invalid course selected. Please refresh and try again.' });
+    return;
+  }
+
+  setUploading(true);
+  setUploadProgress(0);
+  setMessage({ type: '', text: '' });
+
+  try {
+    // STEP 1: Upload to Cloudinary
+    setUploadStage('cloudinary');
+    setMessage({ type: 'info', text: '📤 Step 1/2: Uploading to Cloudinary...' });
     
-    if (type !== 'meeting' && !file) {
-      setMessage({ type: 'error', text: 'Please select a file' });
-      return;
+    let cloudinaryResult = null;
+    try {
+      cloudinaryResult = await uploadToCloudinary();
+      setUploadProgress(50);
+      console.log('✅ Cloudinary upload successful:', cloudinaryResult);
+    } catch (cloudinaryError) {
+      console.warn('⚠️ Cloudinary upload failed, continuing with local only:', cloudinaryError);
+      setMessage({ type: 'info', text: '⚠️ Cloudinary unavailable, using local storage only...' });
     }
 
-    if (type === 'meeting' && !uploadData.meeting_url) {
-      setMessage({ type: 'error', text: 'Please enter a meeting URL' });
+    // STEP 2: Create FormData for backend
+    setUploadStage('local');
+    setMessage({ 
+      type: 'info', 
+      text: cloudinaryResult 
+        ? '📥 Step 2/2: Saving to database with dual storage...' 
+        : '📥 Saving to local storage...' 
+    });
+
+    const formData = new FormData();
+    formData.append('document', file);
+    formData.append('title', uploadData.title);
+    formData.append('description', uploadData.description || '');
+    formData.append('document_type', uploadData.document_type);
+    formData.append('is_public', uploadData.is_public);
+
+    // Add Cloudinary data if available
+    if (cloudinaryResult) {
+      formData.append('cloudinary_url', cloudinaryResult.secure_url);
+      formData.append('cloudinary_public_id', cloudinaryResult.public_id);
+      formData.append('file_size', cloudinaryResult.bytes.toString());
+      formData.append('mimetype', file.type);
+      formData.append('original_name', file.name);
+      formData.append('file_extension', file.name.split('.').pop().toLowerCase());
+    } else {
+      // Send basic file info even without Cloudinary
+      formData.append('file_size', file.size.toString());
+      formData.append('mimetype', file.type);
+      formData.append('original_name', file.name);
+      formData.append('file_extension', file.name.split('.').pop().toLowerCase());
+    }
+
+    // Send to dual upload endpoint
+    console.log('📤 Sending to:', `${API_BASE_URL}/documents/courses/${uploadData.course_id}/upload`);
+    
+    const response = await fetch(
+      `${API_BASE_URL}/documents/courses/${uploadData.course_id}/upload`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+          // Don't set Content-Type - browser sets it with boundary
+        },
+        body: formData
+      }
+    );
+
+    setUploadProgress(100);
+
+    // Check response type
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      const text = await response.text();
+      console.error('❌ Non-JSON response:', text.substring(0, 200));
+      throw new Error(`Server error: ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    if (response.ok) {
+      const storageMessage = cloudinaryResult 
+        ? '✅ Document uploaded to Cloudinary + Local storage!' 
+        : '✅ Document uploaded to Local storage (Cloudinary fallback)';
+      
+      setMessage({ type: 'success', text: storageMessage });
+      setUploadStage('complete');
+      
+      setTimeout(() => {
+        onSuccess();
+      }, 2000);
+    } else {
+      throw new Error(data.error || 'Failed to save document');
+    }
+
+  } catch (error) {
+    console.error('❌ Upload error:', error);
+    setMessage({ 
+      type: 'error', 
+      text: error.message || 'Network error occurred' 
+    });
+  } finally {
+    setUploading(false);
+    setUploadStage('');
+  }
+};
+
+  const handleVideoSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!file) {
+      setMessage({ type: 'error', text: 'Please select a video file' });
       return;
     }
 
     if (!uploadData.course_id) {
       setMessage({ type: 'error', text: 'Please select a course' });
-      return;
-    }
-
-    if (type === 'meeting' && !uploadData.scheduled_date) {
-      setMessage({ type: 'error', text: 'Please select a scheduled date and time' });
       return;
     }
 
@@ -488,126 +621,134 @@ const UploadModal = ({ type, courses, onClose, onSuccess }) => {
 
     try {
       const token = localStorage.getItem('token');
-      let cloudinaryResult = null;
-
-      // Step 1: Upload to Cloudinary first (for videos and documents)
-      if (type !== 'meeting') {
-        setMessage({ type: 'info', text: 'Uploading to Cloudinary...' });
-        cloudinaryResult = await uploadToCloudinary();
-        
-        if (!cloudinaryResult) {
-          throw new Error('Failed to upload to Cloudinary');
+      
+      // Upload to Cloudinary first
+      setMessage({ type: 'info', text: '📤 Uploading video to Cloudinary...' });
+      const cloudinaryResult = await uploadToCloudinary();
+      setUploadProgress(50);
+      
+      // Send metadata to backend
+      setMessage({ type: 'info', text: '📥 Saving video information...' });
+      
+      const response = await fetch(
+        `${API_BASE_URL}/course-materials/courses/${uploadData.course_id}/videos`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            title: uploadData.title,
+            description: uploadData.description,
+            is_public: uploadData.is_public,
+            cloudinary_url: cloudinaryResult.secure_url,
+            cloudinary_public_id: cloudinaryResult.public_id,
+            file_size: cloudinaryResult.bytes,
+            mimetype: file.type,
+            original_name: file.name,
+            duration: '00:00'
+          })
         }
-        
-        console.log('Cloudinary upload successful:', cloudinaryResult);
-      }
+      );
 
-      // Step 2: Send metadata to your backend
-      setMessage({ type: 'info', text: 'Saving to database...' });
-
-      let endpoint, method, body;
-      const headers = {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      };
-
-      if (type === 'meeting') {
-        // Meeting API call
-        endpoint = `${API_BASE_URL}/course-materials/courses/${uploadData.course_id}/meetings`;
-        method = 'POST';
-        body = JSON.stringify({
-          title: uploadData.title,
-          description: uploadData.description,
-          meeting_url: uploadData.meeting_url,
-          meeting_type: uploadData.meeting_type,
-          scheduled_date: uploadData.scheduled_date,
-          duration: uploadData.duration,
-          meeting_id: uploadData.meeting_id,
-          passcode: uploadData.passcode
-        });
-      } else {
-        // Send Cloudinary data to backend
-        const requestBody = {
-          title: uploadData.title,
-          description: uploadData.description,
-          is_public: uploadData.is_public,
-          cloudinary_url: cloudinaryResult.secure_url,
-          cloudinary_public_id: cloudinaryResult.public_id,
-          file_size: cloudinaryResult.bytes,
-          mimetype: file.type,
-          original_name: file.name
-        };
-
-        if (type === 'document') {
-          requestBody.document_type = uploadData.document_type;
-          requestBody.file_extension = file.name.split('.').pop().toLowerCase();
-        }
-
-        if (type === 'video') {
-          requestBody.duration = '00:00'; // You might want to get actual duration
-        }
-
-        endpoint = type === 'video' 
-          ? `${API_BASE_URL}/course-materials/courses/${uploadData.course_id}/videos`
-          : `${API_BASE_URL}/course-materials/courses/${uploadData.course_id}/documents`;
-        method = 'POST';
-        body = JSON.stringify(requestBody);
-      }
-
-      const response = await fetch(endpoint, {
-        method,
-        headers,
-        body
-      });
+      setUploadProgress(100);
 
       if (response.ok) {
-        const successMessage = type === 'meeting' 
-          ? 'Meeting scheduled successfully!' 
-          : `${type === 'video' ? 'Video' : 'Document'} uploaded to Cloudinary and saved successfully!`;
-        
-        setMessage({ type: 'success', text: successMessage });
+        setMessage({ type: 'success', text: '✅ Video uploaded successfully!' });
         setTimeout(() => {
           onSuccess();
         }, 1500);
       } else {
         const errorData = await response.json();
-        {/*
-        
-        // If backend save fails, try to delete from Cloudinary
-        if (cloudinaryResult && cloudinaryResult.public_id) {
-          try {
-            // Optional: Delete from Cloudinary if backend save fails
-            await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/${type === 'video' ? 'video' : 'raw'}/destroy`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({
-                public_id: cloudinaryResult.public_id,
-                upload_preset: CLOUDINARY_UPLOAD_PRESET
-              })
-            });
-          } catch (deleteError) {
-            console.error('Error deleting from Cloudinary:', deleteError);
-          }
-        }
-      */}
-        
-        setMessage({ type: 'error', text: errorData.error || `Failed to ${type === 'meeting' ? 'schedule meeting' : 'save ' + type}` });
+        throw new Error(errorData.error || 'Failed to save video');
       }
+
     } catch (error) {
       console.error('Upload error:', error);
       setMessage({ type: 'error', text: error.message || 'Network error occurred' });
     } finally {
       setUploading(false);
-      setUploadProgress(0);
+    }
+  };
+
+  const handleMeetingSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!uploadData.meeting_url) {
+      setMessage({ type: 'error', text: 'Please enter a meeting URL' });
+      return;
+    }
+
+    if (!uploadData.course_id) {
+      setMessage({ type: 'error', text: 'Please select a course' });
+      return;
+    }
+
+    if (!uploadData.scheduled_date) {
+      setMessage({ type: 'error', text: 'Please select a scheduled date and time' });
+      return;
+    }
+
+    setUploading(true);
+    setMessage({ type: '', text: '' });
+
+    try {
+      const token = localStorage.getItem('token');
+      
+      const response = await fetch(
+        `${API_BASE_URL}/course-materials/courses/${uploadData.course_id}/meetings`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            title: uploadData.title,
+            description: uploadData.description,
+            meeting_url: uploadData.meeting_url,
+            meeting_type: uploadData.meeting_type,
+            scheduled_date: uploadData.scheduled_date,
+            duration: uploadData.duration,
+            meeting_id: uploadData.meeting_id,
+            passcode: uploadData.passcode
+          })
+        }
+      );
+
+      if (response.ok) {
+        setMessage({ type: 'success', text: '✅ Meeting scheduled successfully!' });
+        setTimeout(() => {
+          onSuccess();
+        }, 1500);
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to schedule meeting');
+      }
+
+    } catch (error) {
+      console.error('Meeting error:', error);
+      setMessage({ type: 'error', text: error.message || 'Network error occurred' });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleSubmit = (e) => {
+    if (type === 'video') {
+      handleVideoSubmit(e);
+    } else if (type === 'document') {
+      handleDocumentSubmit(e);
+    } else if (type === 'meeting') {
+      handleMeetingSubmit(e);
     }
   };
 
   const getModalTitle = () => {
     switch (type) {
       case 'video': return 'Upload Video to Cloudinary';
-      case 'document': return 'Upload Document to Cloudinary';
+      case 'document': return 'Upload Document (Cloudinary + Local)';
       case 'meeting': return 'Schedule Meeting';
       default: return 'Upload';
     }
@@ -616,10 +757,45 @@ const UploadModal = ({ type, courses, onClose, onSuccess }) => {
   const getIcon = () => {
     switch (type) {
       case 'video': return <Video className="w-6 h-6" />;
-      case 'document': return <FileText className="w-6 h-6" />;
+      case 'document': return (
+        <div className="flex items-center gap-1">
+          <FileText className="w-5 h-5" />
+          <Cloud className="w-4 h-4 text-blue-300" />
+          <HardDrive className="w-4 h-4 text-gray-300" />
+        </div>
+      );
       case 'meeting': return <Calendar className="w-6 h-6" />;
       default: return <Upload className="w-6 h-6" />;
     }
+  };
+
+  // Progress bar component
+  const ProgressBar = ({ progress, stage }) => {
+    const getStageMessage = () => {
+      switch(stage) {
+        case 'cloudinary': return 'Uploading to Cloudinary...';
+        case 'local': return 'Saving to local storage...';
+        case 'complete': return 'Upload complete!';
+        default: return 'Uploading...';
+      }
+    };
+
+    return (
+      <div className="space-y-2">
+        <div className="flex justify-between text-sm text-gray-600">
+          <span>{getStageMessage()}</span>
+          <span>{progress}%</span>
+        </div>
+        <div className="w-full bg-gray-200 rounded-full h-2.5">
+          <div 
+            className={`h-2.5 rounded-full transition-all duration-300 ${
+              stage === 'complete' ? 'bg-green-500' : 'bg-blue-600'
+            }`}
+            style={{ width: `${progress}%` }}
+          ></div>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -694,7 +870,10 @@ const UploadModal = ({ type, courses, onClose, onSuccess }) => {
               <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center hover:border-blue-500 transition-colors duration-200">
                 <input
                   type="file"
-                  accept={type === 'video' ? 'video/*' : '.pdf,.doc,.docx,.txt,.ppt,.pptx,.zip,.jpg,.jpeg,.png'}
+                  accept={type === 'video' 
+                    ? 'video/*' 
+                    : '.pdf,.doc,.docx,.txt,.ppt,.pptx,.zip,.jpg,.jpeg,.png'
+                  }
                   onChange={handleFileChange}
                   className="hidden"
                   id="file-upload"
@@ -706,15 +885,22 @@ const UploadModal = ({ type, courses, onClose, onSuccess }) => {
                     {file ? file.name : `Click to upload ${type === 'video' ? 'a video file' : 'a document'}`}
                   </p>
                   <p className="text-gray-400 text-sm mt-1">
-                    {type === 'video' ? 'MP4, MOV, AVI (Max 500MB)' : 'PDF, DOC, PPT, TXT, ZIP, Images (Max 100MB)'}
+                    {type === 'video' 
+                      ? 'MP4, MOV, AVI (Max 500MB)' 
+                      : 'PDF, DOC, PPT, TXT, ZIP, Images (Max 50MB)'}
                   </p>
                 </label>
               </div>
             </div>
           )}
 
-          {/* Upload Progress Bar */}
-          {uploading && uploadProgress > 0 && (
+          {/* Upload Progress Bar - Only for documents */}
+          {type === 'document' && uploading && uploadProgress > 0 && (
+            <ProgressBar progress={uploadProgress} stage={uploadStage} />
+          )}
+
+          {/* Upload Progress Bar - For videos */}
+          {type === 'video' && uploading && uploadProgress > 0 && (
             <div className="space-y-2">
               <div className="flex justify-between text-sm text-gray-600">
                 <span>Uploading to Cloudinary...</span>
@@ -886,11 +1072,14 @@ const UploadModal = ({ type, courses, onClose, onSuccess }) => {
             </div>
           )}
 
-          {/* Cloudinary Info Note */}
-          {type !== 'meeting' && (
+          {/* Storage Info - Only for documents */}
+          {type === 'document' && (
             <div className="bg-blue-50 p-3 rounded-lg text-sm text-blue-800">
-              <p className="font-semibold mb-1">📁 Cloudinary Upload</p>
-              <p>Your file will be uploaded to Cloudinary and automatically optimized for delivery.</p>
+              <p className="font-semibold mb-1">📦 Dual Storage System</p>
+              <p className="flex items-center gap-2">
+                <Cloud className="w-4 h-4" /> Cloudinary + <HardDrive className="w-4 h-4" /> Local Storage
+              </p>
+              <p className="text-xs mt-1">Documents are saved to both storage systems. Students can access from either source automatically.</p>
             </div>
           )}
 
@@ -912,12 +1101,21 @@ const UploadModal = ({ type, courses, onClose, onSuccess }) => {
               {uploading ? (
                 <>
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  {type === 'meeting' ? 'Scheduling...' : 'Uploading to Cloudinary...'}
+                  {type === 'document' && uploadStage === 'cloudinary' ? 'Uploading to Cloudinary...' :
+                   type === 'document' && uploadStage === 'local' ? 'Saving to Local...' :
+                   type === 'meeting' ? 'Scheduling...' : 'Uploading...'}
                 </>
               ) : (
                 <>
-                  {type === 'meeting' ? <Calendar className="w-4 h-4" /> : <Upload className="w-4 h-4" />}
-                  {type === 'meeting' ? 'Schedule Meeting' : `Upload ${type}`}
+                  {type === 'meeting' ? <Calendar className="w-4 h-4" /> : 
+                   type === 'document' ? (
+                     <>
+                       <Cloud className="w-4 h-4" />
+                       <HardDrive className="w-4 h-4" />
+                     </>
+                   ) : <Upload className="w-4 h-4" />}
+                  {type === 'meeting' ? 'Schedule Meeting' : 
+                   type === 'document' ? 'Upload to Both' : `Upload ${type}`}
                 </>
               )}
             </button>

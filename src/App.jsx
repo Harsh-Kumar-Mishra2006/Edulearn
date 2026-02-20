@@ -22,6 +22,7 @@ import Analytics from './Components/admin/Analytics/Analytics';
 import AdminAnalytics from './Components/admin/Analytics/Analytics';
 import NewCourses from './sections/newCourses';
 import StudentAssignmentView from './Components/Student/assignments/studentAssignments';
+import StudentQueryForm from './Components/forms/querryForm';
 // Add this admin check function
 const checkAdminAuth = () => {
   const token = localStorage.getItem('token');
@@ -42,6 +43,9 @@ const ProtectedAdminRoute = ({ children }) => {
   return checkAdminAuth() ? children : <Navigate to="/admin" replace />;
 };
 
+const ProtectedStudentRoute = ({ children }) => {
+  return checkStudentAuth() ? children : <Navigate to="/student" replace />;
+};
 // In your Routes
 <Route 
   path="/certificate" 
@@ -50,7 +54,15 @@ const ProtectedAdminRoute = ({ children }) => {
       <CertificateManagement />
     </ProtectedAdminRoute>
   } 
+/>,
+<Route 
+  path="/dashboard" 
+  element={
+    <ProtectedAdminRoute>
+    </ProtectedAdminRoute>
+  } 
 />
+
 const App = () => {
   return (
     <Router>
@@ -62,12 +74,14 @@ const App = () => {
             <>
               <HeroSection />
               <CoursesPage />
+              <StudentQueryForm/>
             </>
           } />
           <Route path="/dashboard" element={
             <>
               <HeroSection />
               <CoursesPage />
+              <StudentQueryForm/>
             </>
           } />
 

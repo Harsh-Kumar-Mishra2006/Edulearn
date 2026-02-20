@@ -14,6 +14,7 @@ import {
   Calendar
 } from 'lucide-react';
 import axios from 'axios';
+import AdminQueries from './adminquerries/adminQuerries'
 
 const StudentRecords = () => {
   const [payments, setPayments] = useState([]);
@@ -132,6 +133,7 @@ const StudentRecords = () => {
         {/* Header */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 mb-8">
           <div className="flex items-center justify-between">
+            <AdminQueries/>
             <div>
               <h1 className="text-3xl font-bold text-gray-900">Student Records</h1>
               <p className="text-gray-600 mt-2">
