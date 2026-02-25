@@ -436,56 +436,7 @@ const StudentQueryForm = () => {
               </AnimatePresence>
             </motion.div>
 
-            {/* Suggestion Section */}
-            <motion.div variants={itemVariants}>
-              <motion.label
-                htmlFor="suggestion"
-                className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2"
-                animate={focusedField === 'suggestion' ? { color: '#2563eb', x: 5 } : { color: '#374151', x: 0 }}
-              >
-                <Lightbulb size={18} className={focusedField === 'suggestion' ? 'text-blue-600' : 'text-gray-400'} />
-                <span>Suggestions</span>
-                <motion.span
-                  className="text-red-500 text-lg"
-                  animate={{ scale: [1, 1.2, 1] }}
-                  transition={{ duration: 1.5, repeat: Infinity, delay: 0.2 }}
-                >
-                  *
-                </motion.span>
-              </motion.label>
-              
-              <motion.textarea
-                id="suggestion"
-                name="suggestion"
-                rows="4"
-                value={formData.suggestion}
-                onChange={handleChange}
-                onFocus={() => setFocusedField('suggestion')}
-                onBlur={() => setFocusedField(null)}
-                required
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all duration-200 resize-none bg-white/50 backdrop-blur-sm"
-                placeholder="Share your suggestions for improvement..."
-                whileFocus={{ 
-                  scale: 1.02, 
-                  boxShadow: '0 20px 30px -10px rgba(37, 99, 235, 0.2)',
-                  borderColor: '#3b82f6'
-                }}
-                transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-              />
-              
-              <AnimatePresence>
-                {formData.suggestion && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    className="mt-2 text-xs text-blue-600 font-medium"
-                  >
-                    {formData.suggestion.length} characters
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </motion.div>
+            
 
             {/* Status message */}
             <AnimatePresence mode="wait">

@@ -95,108 +95,156 @@ const MyLearning = () => {
   };
 
   // SMART DOWNLOAD FUNCTION - Tries Cloudinary first, falls back to local
-  const handleDocumentDownload = async (document) => {
-    const docId = document._id;
-    setDownloadLoading(prev => ({ ...prev, [docId]: true }));
+  // Mylearning.jsx - FIXED LOCAL DOCUMENT HANDLING
 
-    try {
-      const token = localStorage.getItem('token');
-      
-      // Step 1: Try the smart download endpoint (tries Cloudinary, falls back to local)
-      const downloadUrl = `${API_BASE_URL}/documents/courses/${document.course_id}/documents/${docId}/download`;
-      
-      console.log('📥 Attempting smart download via:', downloadUrl);
-      
-      // Create a temporary iframe for download (handles redirects well)
-      const iframe = document.createElement('iframe');
-      iframe.style.display = 'none';
-      iframe.src = downloadUrl;
-      
-      // Add authorization header via fetch first to check
-      const response = await fetch(downloadUrl, {
-        method: 'HEAD',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
+// Replace the handleDocumentDownload function with this:
+const handleDocumentDownload = async (document) => {
+  const docId = document._id;
+  setDownloadLoading(prev => ({ ...prev, [docId]: true }));
 
-      if (response.ok) {
-        document.body.appendChild(iframe);
-        
-        // Get filename from Content-Disposition header or use title
-        const contentDisposition = response.headers.get('Content-Disposition');
-        let filename = document.title || 'document';
-        if (document.file_type) {
-          filename = `${filename}.${document.file_type}`;
-        }
-        
-        setTimeout(() => {
-          if (document.body.contains(iframe)) {
-            document.body.removeChild(iframe);
-          }
-        }, 5000);
-        
-        // Mark as completed
-        markAsCompleted(selectedCategory.course_category, 'documents', docId);
+  try {
+    const token = localStorage.getItem('token');
+    
+    // For local files, we need to use the API endpoint
+    // The document should have course_id from the data structure
+    const courseId = document.course_id;
+    
+    if (!courseId) {
+      console.error('❌ No course_id found in document:', document);
+      throw new Error('Course ID not found');
+    }
+
+    // Use the download endpoint from your routes
+    const downloadUrl = `${API_BASE_URL}/my-learning/download/document/${courseId}/${docId}`;
+    
+    console.log('📥 Attempting download via:', downloadUrl);
+    
+    // Method 1: Try fetch with token first to verify
+    const response = await fetch(downloadUrl, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    if (response.ok) {
+      // If HEAD request works, open the URL in new tab (it will download)
+      window.open(downloadUrl, '_blank');
+    } else {
+      // If API fails, try fallbacks
+      throw new Error(`Download failed with status: ${response.status}`);
+    }
+    
+    // Mark as completed after successful download attempt
+    markAsCompleted(selectedCategory.course_category, 'documents', docId);
+    
+  } catch (error) {
+    console.error('❌ Download error:', error);
+    
+    // FALLBACK 1: Try using file_url if it exists
+    if (document.file_url) {
+      console.log('⚠️ Trying fallback with file_url:', document.file_url);
+      
+      // Check if it's a local URL (starts with / or contains local path)
+      if (document.file_url.startsWith('/') || document.file_url.includes('localhost') || document.file_url.includes('render.com')) {
+        // Add token as query parameter for local files
+        const token = localStorage.getItem('token');
+        const urlWithAuth = `${document.file_url}${document.file_url.includes('?') ? '&' : '?'}token=${token}`;
+        window.open(urlWithAuth, '_blank');
       } else {
-        // If HEAD request fails, try direct Cloudinary URL with download flag
-        if (document.file_url && document.file_url.includes('cloudinary.com')) {
+        // Cloudinary URL - try with download flag
+        if (document.file_url.includes('cloudinary.com')) {
           const cloudinaryUrl = document.file_url.includes('fl_attachment') 
             ? document.file_url 
             : document.file_url.replace('/upload/', '/upload/fl_attachment/');
-          
           window.open(cloudinaryUrl, '_blank');
-        } else if (document.file_url) {
-          window.open(document.file_url, '_blank');
         } else {
-          throw new Error('No valid download URL found');
+          window.open(document.file_url, '_blank');
         }
       }
-    } catch (error) {
-      console.error('Download error:', error);
-      
-      // Final fallback - try direct Cloudinary URL
-      if (document.file_url && document.file_url.includes('cloudinary.com')) {
-        const fallbackUrl = document.file_url.includes('fl_attachment') 
-          ? document.file_url 
-          : document.file_url.replace('/upload/', '/upload/fl_attachment/');
-        window.open(fallbackUrl, '_blank');
-      } else if (document.file_url) {
+    } 
+    // FALLBACK 2: Try direct local file access (if filename is known)
+    else if (document.local_file && document.local_file.filename) {
+      const token = localStorage.getItem('token');
+      const localUrl = `${API_BASE_URL}/documents/local/${document.local_file.filename}?token=${token}`;
+      window.open(localUrl, '_blank');
+    }
+    // FALLBACK 3: Last resort - alert user
+    else {
+      alert('Download failed. Please try again or contact support.');
+    }
+  } finally {
+    setDownloadLoading(prev => ({ ...prev, [docId]: false }));
+  }
+};
+
+// Replace the handleDocumentView function with this:
+const handleDocumentView = async (document) => {
+  try {
+    const token = localStorage.getItem('token');
+    const courseId = document.course_id;
+    
+    if (!courseId) {
+      console.error('❌ No course_id found:', document);
+      if (document.file_url) {
         window.open(document.file_url, '_blank');
       } else {
-        alert('Download failed. Please try again or contact support.');
+        alert('Cannot view document: missing course information');
       }
-    } finally {
-      setDownloadLoading(prev => ({ ...prev, [docId]: false }));
-    }
-  };
-
-  // VIEW DOCUMENT FUNCTION - Opens in browser with fallback
-  const handleDocumentView = (document) => {
-    const url = document.file_url;
-    
-    if (!url) {
-      alert('Document is not available for viewing.');
       return;
     }
 
-    console.log('👁️ Viewing document:', { title: document.title, url });
+    // Use the view endpoint
+    const viewUrl = `${API_BASE_URL}/my-learning/view/${courseId}/${document._id}/document`;
     
-    // For Cloudinary URLs, ensure proper viewing
-    let viewUrl = url;
-    if (url.includes('cloudinary.com') && document.file_type === 'pdf') {
-      // PDFs work better with specific flags
-      viewUrl = url.includes('fl_attachment') 
-        ? url.replace('fl_attachment', 'fl_document_view')
-        : url.replace('/upload/', '/upload/fl_document_view/');
+    console.log('👁️ Viewing document via:', viewUrl);
+    
+    // Open with authorization header (using fetch to get the redirect)
+    const response = await fetch(viewUrl, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      },
+      redirect: 'follow'
+    });
+
+    if (response.ok) {
+      // Get the final URL after redirect
+      const finalUrl = response.url;
+      window.open(finalUrl, '_blank');
+    } else {
+      // Fallback to direct URL if available
+      if (document.file_url) {
+        window.open(document.file_url, '_blank');
+      } else {
+        throw new Error(`View failed with status: ${response.status}`);
+      }
     }
     
-    // Open in new tab
-    window.open(viewUrl, '_blank');
-    
-    // Mark as completed after viewing
+    // Mark as completed
     markAsCompleted(selectedCategory.course_category, 'documents', document._id);
-  };
+    
+  } catch (error) {
+    console.error('❌ View error:', error);
+    
+    // Final fallback
+    if (document.file_url) {
+      window.open(document.file_url, '_blank');
+    } else {
+      alert('Cannot view document. Please try downloading instead.');
+    }
+  }
+};
+
+// Also add this helper function to check if a document is stored locally
+const isLocalDocument = (document) => {
+  return document.file_url && (
+    document.file_url.startsWith('/') || 
+    document.file_url.includes('localhost') || 
+    document.file_url.includes('render.com') ||
+    document.file_url.includes('/api/documents/local/')
+  );
+};
 
   // VIDEO VIEW FUNCTION
   const handleVideoView = (video) => {
@@ -680,29 +728,33 @@ const MyLearning = () => {
                               <span>{formatFileSize(document.file_size)}</span>
                             </div>
 
-                            <div className="flex gap-2">
-                              <button
-                                onClick={() => handleDocumentView(document)}
-                                className="flex-1 bg-gray-600 text-white py-2 px-3 rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors flex items-center justify-center gap-2"
-                              >
-                                <Eye className="w-4 h-4" />
-                                View Document
-                              </button>
-                              <button
-                                onClick={() => handleDocumentDownload(document)}
-                                disabled={downloadLoading[document._id]}
-                                className="flex-1 bg-green-600 text-white py-2 px-3 rounded-lg text-sm font-medium hover:bg-green-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
-                              >
-                                {downloadLoading[document._id] ? (
-                                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                                ) : (
-                                  <>
-                                    <Download className="w-4 h-4" />
-                                    Download
-                                  </>
-                                )}
-                              </button>
-                            </div>
+<div className="flex gap-2">
+  <button
+    onClick={() => handleDocumentView(document)}
+    className="flex-1 bg-gray-600 text-white py-2 px-3 rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors flex items-center justify-center gap-2"
+  >
+    <Eye className="w-4 h-4" />
+    View Document
+  </button>
+  <button
+    onClick={() => handleDocumentDownload(document)}
+    disabled={downloadLoading[document._id]}
+    className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
+      isLocalDocument(document) 
+        ? 'bg-orange-600 hover:bg-orange-700' 
+        : 'bg-green-600 hover:bg-green-700'
+    } text-white disabled:opacity-50`}
+  >
+    {downloadLoading[document._id] ? (
+      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+    ) : (
+      <>
+        <Download className="w-4 h-4" />
+        {isLocalDocument(document) ? 'Download (Local)' : 'Download'}
+      </>
+    )}
+  </button>
+</div>
                             
                             {/* Storage info tooltip */}
                             <div className="mt-2 text-xs text-gray-400 flex items-center gap-2">
