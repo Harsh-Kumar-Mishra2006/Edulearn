@@ -461,7 +461,8 @@ const UploadModal = ({ type, courses, onClose, onSuccess }) => {
     }
   };
 
-  const handleDocumentSubmit = async (e) => {
+  // ==================== DOCUMENT UPLOAD - LOCAL STORAGE ONLY ====================
+const handleDocumentSubmit = async (e) => {
   e.preventDefault();
   
   // Validate file
@@ -483,14 +484,6 @@ const UploadModal = ({ type, courses, onClose, onSuccess }) => {
     return;
   }
 
-  // Debug logs
-  console.log('📦 Document Upload Debug:');
-  console.log('Course ID:', uploadData.course_id);
-  console.log('Course ID length:', uploadData.course_id?.length);
-  console.log('File:', file?.name);
-  console.log('File size:', file?.size);
-  console.log('Token exists:', !!token);
-
   // Validate course ID format (MongoDB ObjectId is 24 characters)
   if (!uploadData.course_id || uploadData.course_id.length !== 24) {
     setMessage({ type: 'error', text: 'Invalid course selected. Please refresh and try again.' });
@@ -500,55 +493,27 @@ const UploadModal = ({ type, courses, onClose, onSuccess }) => {
   setUploading(true);
   setUploadProgress(0);
   setMessage({ type: '', text: '' });
+  setUploadStage('uploading');
 
   try {
-    // STEP 1: Upload to Cloudinary
-    setUploadStage('cloudinary');
-    setMessage({ type: 'info', text: '📤 Step 1/2: Uploading to Cloudinary...' });
+    // Step 1: Upload to local server
+    setMessage({ type: 'info', text: '📤 Uploading to local storage...' });
     
-    let cloudinaryResult = null;
-    try {
-      cloudinaryResult = await uploadToCloudinary();
-      setUploadProgress(50);
-      console.log('✅ Cloudinary upload successful:', cloudinaryResult);
-    } catch (cloudinaryError) {
-      console.warn('⚠️ Cloudinary upload failed, continuing with local only:', cloudinaryError);
-      setMessage({ type: 'info', text: '⚠️ Cloudinary unavailable, using local storage only...' });
-    }
-
-    // STEP 2: Create FormData for backend
-    setUploadStage('local');
-    setMessage({ 
-      type: 'info', 
-      text: cloudinaryResult 
-        ? '📥 Step 2/2: Saving to database with dual storage...' 
-        : '📥 Saving to local storage...' 
-    });
-
     const formData = new FormData();
     formData.append('document', file);
     formData.append('title', uploadData.title);
     formData.append('description', uploadData.description || '');
     formData.append('document_type', uploadData.document_type);
     formData.append('is_public', uploadData.is_public);
+    formData.append('file_size', file.size.toString());
+    formData.append('mimetype', file.type);
+    formData.append('original_name', file.name);
+    formData.append('file_extension', file.name.split('.').pop().toLowerCase());
 
-    // Add Cloudinary data if available
-    if (cloudinaryResult) {
-      formData.append('cloudinary_url', cloudinaryResult.secure_url);
-      formData.append('cloudinary_public_id', cloudinaryResult.public_id);
-      formData.append('file_size', cloudinaryResult.bytes.toString());
-      formData.append('mimetype', file.type);
-      formData.append('original_name', file.name);
-      formData.append('file_extension', file.name.split('.').pop().toLowerCase());
-    } else {
-      // Send basic file info even without Cloudinary
-      formData.append('file_size', file.size.toString());
-      formData.append('mimetype', file.type);
-      formData.append('original_name', file.name);
-      formData.append('file_extension', file.name.split('.').pop().toLowerCase());
-    }
+    setUploadProgress(30);
+    setUploadStage('saving');
 
-    // Send to dual upload endpoint
+    // Use the CORRECT endpoint for local document upload
     console.log('📤 Sending to:', `${API_BASE_URL}/documents/courses/${uploadData.course_id}/upload`);
     
     const response = await fetch(
@@ -557,48 +522,65 @@ const UploadModal = ({ type, courses, onClose, onSuccess }) => {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
-          // Don't set Content-Type - browser sets it with boundary
+          // DO NOT set Content-Type - browser will set it with boundary
         },
         body: formData
       }
     );
 
-    setUploadProgress(100);
+    setUploadProgress(80);
 
     // Check response type
     const contentType = response.headers.get('content-type');
-    if (!contentType || !contentType.includes('application/json')) {
+    let responseData;
+    
+    if (contentType && contentType.includes('application/json')) {
+      responseData = await response.json();
+    } else {
       const text = await response.text();
-      console.error('❌ Non-JSON response:', text.substring(0, 200));
+      console.error('Non-JSON response:', text);
       throw new Error(`Server error: ${response.status}`);
     }
 
-    const data = await response.json();
-
-    if (response.ok) {
-      const storageMessage = cloudinaryResult 
-        ? '✅ Document uploaded to Cloudinary + Local storage!' 
-        : '✅ Document uploaded to Local storage (Cloudinary fallback)';
-      
-      setMessage({ type: 'success', text: storageMessage });
-      setUploadStage('complete');
-      
-      setTimeout(() => {
-        onSuccess();
-      }, 2000);
-    } else {
-      throw new Error(data.error || 'Failed to save document');
+    if (!response.ok) {
+      throw new Error(responseData.error || `Upload failed with status: ${response.status}`);
     }
+
+    setUploadProgress(100);
+    setUploadStage('complete');
+
+    console.log('✅ Upload successful:', responseData);
+    
+    setMessage({ 
+      type: 'success', 
+      text: responseData.message || '✅ Document uploaded to local storage successfully!' 
+    });
+    
+    // Clear form
+    setFile(null);
+    setUploadData(prev => ({
+      ...prev,
+      title: '',
+      description: ''
+    }));
+    
+    // Reset file input
+    const fileInput = document.getElementById('file-upload');
+    if (fileInput) fileInput.value = '';
+    
+    setTimeout(() => {
+      onSuccess();
+    }, 2000);
 
   } catch (error) {
     console.error('❌ Upload error:', error);
     setMessage({ 
       type: 'error', 
-      text: error.message || 'Network error occurred' 
+      text: error.message || 'Network error occurred. Please try again.' 
     });
+    setUploadStage('');
   } finally {
     setUploading(false);
-    setUploadStage('');
   }
 };
 
@@ -770,33 +752,34 @@ const UploadModal = ({ type, courses, onClose, onSuccess }) => {
   };
 
   // Progress bar component
-  const ProgressBar = ({ progress, stage }) => {
-    const getStageMessage = () => {
-      switch(stage) {
-        case 'cloudinary': return 'Uploading to Cloudinary...';
-        case 'local': return 'Saving to local storage...';
-        case 'complete': return 'Upload complete!';
-        default: return 'Uploading...';
-      }
-    };
-
-    return (
-      <div className="space-y-2">
-        <div className="flex justify-between text-sm text-gray-600">
-          <span>{getStageMessage()}</span>
-          <span>{progress}%</span>
-        </div>
-        <div className="w-full bg-gray-200 rounded-full h-2.5">
-          <div 
-            className={`h-2.5 rounded-full transition-all duration-300 ${
-              stage === 'complete' ? 'bg-green-500' : 'bg-blue-600'
-            }`}
-            style={{ width: `${progress}%` }}
-          ></div>
-        </div>
-      </div>
-    );
+  // Progress bar component - add this inside UploadModal
+const ProgressBar = ({ progress, stage }) => {
+  const getStageMessage = () => {
+    switch(stage) {
+      case 'uploading': return 'Uploading to server...';
+      case 'saving': return 'Saving to database...';
+      case 'complete': return 'Upload complete!';
+      default: return 'Uploading...';
+    }
   };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex justify-between text-sm text-gray-600">
+        <span>{getStageMessage()}</span>
+        <span>{progress}%</span>
+      </div>
+      <div className="w-full bg-gray-200 rounded-full h-2.5">
+        <div 
+          className={`h-2.5 rounded-full transition-all duration-300 ${
+            stage === 'complete' ? 'bg-green-500' : 'bg-blue-600'
+          }`}
+          style={{ width: `${progress}%` }}
+        ></div>
+      </div>
+    </div>
+  );
+};
 
   return (
     <motion.div
@@ -878,6 +861,7 @@ const UploadModal = ({ type, courses, onClose, onSuccess }) => {
                   className="hidden"
                   id="file-upload"
                   required={type !== 'meeting'}
+                   key={uploadStage === 'complete' ? 'reset' : 'normal'}
                 />
                 <label htmlFor="file-upload" className="cursor-pointer">
                   <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
@@ -1079,7 +1063,7 @@ const UploadModal = ({ type, courses, onClose, onSuccess }) => {
               <p className="flex items-center gap-2">
                 <Cloud className="w-4 h-4" /> Cloudinary + <HardDrive className="w-4 h-4" /> Local Storage
               </p>
-              <p className="text-xs mt-1">Documents are saved to both storage systems. Students can access from either source automatically.</p>
+              <p className="text-xs mt-1">Documents are stored on the server's local storage. Students can view and download them securely.</p>
             </div>
           )}
 
@@ -1792,6 +1776,17 @@ const DocumentViewerModal = ({ isOpen, onClose, documentUrl, title, file_type })
     </motion.div>
   );
 };
+
+// Reset file input after successful upload
+useEffect(() => {
+  if (uploadStage === 'complete') {
+    // Reset file state
+    setFile(null);
+    // Reset file input
+    const fileInput = document.getElementById('file-upload');
+    if (fileInput) fileInput.value = '';
+  }
+}, [uploadStage]);
   return (
     <motion.div
       className="bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-6 mt-6"

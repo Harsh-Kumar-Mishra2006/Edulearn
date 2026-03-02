@@ -97,16 +97,16 @@ const MyLearning = () => {
   // SMART DOWNLOAD FUNCTION - Tries Cloudinary first, falls back to local
   // Mylearning.jsx - FIXED LOCAL DOCUMENT HANDLING
 
-// Replace the handleDocumentDownload function with this:
+// Mylearning.jsx - UPDATED LOCAL STORAGE ONLY VERSION
+
+// Replace the document handling functions with these:
+
 const handleDocumentDownload = async (document) => {
   const docId = document._id;
   setDownloadLoading(prev => ({ ...prev, [docId]: true }));
 
   try {
     const token = localStorage.getItem('token');
-    
-    // For local files, we need to use the API endpoint
-    // The document should have course_id from the data structure
     const courseId = document.course_id;
     
     if (!courseId) {
@@ -114,12 +114,12 @@ const handleDocumentDownload = async (document) => {
       throw new Error('Course ID not found');
     }
 
-    // Use the download endpoint from your routes
+    // Use the download endpoint
     const downloadUrl = `${API_BASE_URL}/my-learning/download/document/${courseId}/${docId}`;
     
     console.log('📥 Attempting download via:', downloadUrl);
     
-    // Method 1: Try fetch with token first to verify
+    // Open in new tab with token in Authorization header (handled by fetch in background)
     const response = await fetch(downloadUrl, {
       method: 'GET',
       headers: {
@@ -128,57 +128,31 @@ const handleDocumentDownload = async (document) => {
     });
 
     if (response.ok) {
-      // If HEAD request works, open the URL in new tab (it will download)
-      window.open(downloadUrl, '_blank');
+      // Get the redirect URL
+      const finalUrl = response.url;
+      window.open(finalUrl, '_blank');
     } else {
-      // If API fails, try fallbacks
-      throw new Error(`Download failed with status: ${response.status}`);
-    }
-    
-    // Mark as completed after successful download attempt
-    markAsCompleted(selectedCategory.course_category, 'documents', docId);
-    
-  } catch (error) {
-    console.error('❌ Download error:', error);
-    
-    // FALLBACK 1: Try using file_url if it exists
-    if (document.file_url) {
-      console.log('⚠️ Trying fallback with file_url:', document.file_url);
-      
-      // Check if it's a local URL (starts with / or contains local path)
-      if (document.file_url.startsWith('/') || document.file_url.includes('localhost') || document.file_url.includes('render.com')) {
-        // Add token as query parameter for local files
+      // Fallback: try direct file URL
+      if (document.file_url) {
         const token = localStorage.getItem('token');
         const urlWithAuth = `${document.file_url}${document.file_url.includes('?') ? '&' : '?'}token=${token}`;
         window.open(urlWithAuth, '_blank');
       } else {
-        // Cloudinary URL - try with download flag
-        if (document.file_url.includes('cloudinary.com')) {
-          const cloudinaryUrl = document.file_url.includes('fl_attachment') 
-            ? document.file_url 
-            : document.file_url.replace('/upload/', '/upload/fl_attachment/');
-          window.open(cloudinaryUrl, '_blank');
-        } else {
-          window.open(document.file_url, '_blank');
-        }
+        throw new Error(`Download failed with status: ${response.status}`);
       }
-    } 
-    // FALLBACK 2: Try direct local file access (if filename is known)
-    else if (document.local_file && document.local_file.filename) {
-      const token = localStorage.getItem('token');
-      const localUrl = `${API_BASE_URL}/documents/local/${document.local_file.filename}?token=${token}`;
-      window.open(localUrl, '_blank');
     }
-    // FALLBACK 3: Last resort - alert user
-    else {
-      alert('Download failed. Please try again or contact support.');
-    }
+    
+    // Mark as completed
+    markAsCompleted(selectedCategory.course_category, 'documents', docId);
+    
+  } catch (error) {
+    console.error('❌ Download error:', error);
+    alert('Download failed. Please try again or contact support.');
   } finally {
     setDownloadLoading(prev => ({ ...prev, [docId]: false }));
   }
 };
 
-// Replace the handleDocumentView function with this:
 const handleDocumentView = async (document) => {
   try {
     const token = localStorage.getItem('token');
@@ -187,7 +161,9 @@ const handleDocumentView = async (document) => {
     if (!courseId) {
       console.error('❌ No course_id found:', document);
       if (document.file_url) {
-        window.open(document.file_url, '_blank');
+        const token = localStorage.getItem('token');
+        const urlWithAuth = `${document.file_url}${document.file_url.includes('?') ? '&' : '?'}token=${token}`;
+        window.open(urlWithAuth, '_blank');
       } else {
         alert('Cannot view document: missing course information');
       }
@@ -199,7 +175,6 @@ const handleDocumentView = async (document) => {
     
     console.log('👁️ Viewing document via:', viewUrl);
     
-    // Open with authorization header (using fetch to get the redirect)
     const response = await fetch(viewUrl, {
       method: 'GET',
       headers: {
@@ -209,19 +184,19 @@ const handleDocumentView = async (document) => {
     });
 
     if (response.ok) {
-      // Get the final URL after redirect
       const finalUrl = response.url;
       window.open(finalUrl, '_blank');
     } else {
-      // Fallback to direct URL if available
+      // Fallback to direct URL
       if (document.file_url) {
-        window.open(document.file_url, '_blank');
+        const token = localStorage.getItem('token');
+        const urlWithAuth = `${document.file_url}${document.file_url.includes('?') ? '&' : '?'}token=${token}`;
+        window.open(urlWithAuth, '_blank');
       } else {
         throw new Error(`View failed with status: ${response.status}`);
       }
     }
     
-    // Mark as completed
     markAsCompleted(selectedCategory.course_category, 'documents', document._id);
     
   } catch (error) {
@@ -229,12 +204,15 @@ const handleDocumentView = async (document) => {
     
     // Final fallback
     if (document.file_url) {
-      window.open(document.file_url, '_blank');
+      const token = localStorage.getItem('token');
+      const urlWithAuth = `${document.file_url}${document.file_url.includes('?') ? '&' : '?'}token=${token}`;
+      window.open(urlWithAuth, '_blank');
     } else {
       alert('Cannot view document. Please try downloading instead.');
     }
   }
 };
+
 
 // Also add this helper function to check if a document is stored locally
 const isLocalDocument = (document) => {
