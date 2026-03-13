@@ -1,4 +1,4 @@
-// Mylearning.jsx - WITH DUAL DOCUMENT SUPPORT
+// Mylearning.jsx - CORRECTED FOR LOCAL STORAGE ONLY
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -20,9 +20,7 @@ import {
   GraduationCap,
   User,
   File,
-  Cloud,
-  HardDrive,
-  AlertCircle
+  HardDrive
 } from 'lucide-react';
 
 const API_BASE_URL = 'https://edulearnbackend-ffiv.onrender.com/api';
@@ -94,137 +92,137 @@ const MyLearning = () => {
     }
   };
 
-  // SMART DOWNLOAD FUNCTION - Tries Cloudinary first, falls back to local
-  // Mylearning.jsx - FIXED LOCAL DOCUMENT HANDLING
-
-// Mylearning.jsx - UPDATED LOCAL STORAGE ONLY VERSION
-
-// Replace the document handling functions with these:
-
-const handleDocumentDownload = async (document) => {
-  const docId = document._id;
-  setDownloadLoading(prev => ({ ...prev, [docId]: true }));
-
-  try {
-    const token = localStorage.getItem('token');
-    const courseId = document.course_id;
-    
-    if (!courseId) {
-      console.error('❌ No course_id found in document:', document);
-      throw new Error('Course ID not found');
-    }
-
-    // Use the download endpoint
-    const downloadUrl = `${API_BASE_URL}/my-learning/download/document/${courseId}/${docId}`;
-    
-    console.log('📥 Attempting download via:', downloadUrl);
-    
-    // Open in new tab with token in Authorization header (handled by fetch in background)
-    const response = await fetch(downloadUrl, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
-    });
-
-    if (response.ok) {
-      // Get the redirect URL
-      const finalUrl = response.url;
-      window.open(finalUrl, '_blank');
-    } else {
-      // Fallback: try direct file URL
-      if (document.file_url) {
-        const token = localStorage.getItem('token');
-        const urlWithAuth = `${document.file_url}${document.file_url.includes('?') ? '&' : '?'}token=${token}`;
-        window.open(urlWithAuth, '_blank');
-      } else {
-        throw new Error(`Download failed with status: ${response.status}`);
-      }
-    }
-    
-    // Mark as completed
-    markAsCompleted(selectedCategory.course_category, 'documents', docId);
-    
-  } catch (error) {
-    console.error('❌ Download error:', error);
-    alert('Download failed. Please try again or contact support.');
-  } finally {
-    setDownloadLoading(prev => ({ ...prev, [docId]: false }));
-  }
-};
-
-const handleDocumentView = async (document) => {
-  try {
-    const token = localStorage.getItem('token');
-    const courseId = document.course_id;
-    
-    if (!courseId) {
-      console.error('❌ No course_id found:', document);
-      if (document.file_url) {
-        const token = localStorage.getItem('token');
-        const urlWithAuth = `${document.file_url}${document.file_url.includes('?') ? '&' : '?'}token=${token}`;
-        window.open(urlWithAuth, '_blank');
-      } else {
+  // ✅ FIXED: Document View - Uses documentRoutes
+  const handleDocumentView = async (document) => {
+    try {
+      const token = localStorage.getItem('token');
+      const courseId = document.course_id;
+      
+      if (!courseId) {
+        console.error('❌ No course_id found:', document);
         alert('Cannot view document: missing course information');
+        return;
       }
-      return;
-    }
 
-    // Use the view endpoint
-    const viewUrl = `${API_BASE_URL}/my-learning/view/${courseId}/${document._id}/document`;
-    
-    console.log('👁️ Viewing document via:', viewUrl);
-    
-    const response = await fetch(viewUrl, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`
-      },
-      redirect: 'follow'
-    });
+      // Use the document view endpoint
+      const viewUrl = `${API_BASE_URL}/documents/courses/${courseId}/documents/${document._id}/view`;
+      
+      console.log('👁️ Viewing document via:', viewUrl);
+      
+      // Open in new tab with authentication
+      const response = await fetch(viewUrl, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
 
-    if (response.ok) {
-      const finalUrl = response.url;
-      window.open(finalUrl, '_blank');
-    } else {
-      // Fallback to direct URL
-      if (document.file_url) {
-        const token = localStorage.getItem('token');
-        const urlWithAuth = `${document.file_url}${document.file_url.includes('?') ? '&' : '?'}token=${token}`;
-        window.open(urlWithAuth, '_blank');
+      if (response.ok) {
+        // Get the blob from response
+        const blob = await response.blob();
+        
+        // Create object URL and open in new tab
+        const url = window.URL.createObjectURL(blob);
+        window.open(url, '_blank');
+        
+        // Clean up after a delay
+        setTimeout(() => {
+          window.URL.revokeObjectURL(url);
+        }, 100);
       } else {
         throw new Error(`View failed with status: ${response.status}`);
       }
+      
+      // Mark as completed
+      markAsCompleted(selectedCategory.course_category, 'documents', document._id);
+      
+    } catch (error) {
+      console.error('❌ View error:', error);
+      
+      // Fallback: Try direct download instead
+      alert('Unable to view document. Please try downloading instead.');
+      handleDocumentDownload(document);
     }
-    
-    markAsCompleted(selectedCategory.course_category, 'documents', document._id);
-    
-  } catch (error) {
-    console.error('❌ View error:', error);
-    
-    // Final fallback
-    if (document.file_url) {
+  };
+
+  // ✅ FIXED: Document Download - Uses documentRoutes
+  const handleDocumentDownload = async (document) => {
+    const docId = document._id;
+    setDownloadLoading(prev => ({ ...prev, [docId]: true }));
+
+    try {
       const token = localStorage.getItem('token');
-      const urlWithAuth = `${document.file_url}${document.file_url.includes('?') ? '&' : '?'}token=${token}`;
-      window.open(urlWithAuth, '_blank');
-    } else {
-      alert('Cannot view document. Please try downloading instead.');
+      const courseId = document.course_id;
+      
+      if (!courseId) {
+        console.error('❌ No course_id found in document:', document);
+        throw new Error('Course ID not found');
+      }
+
+      // Use the document download endpoint
+      const downloadUrl = `${API_BASE_URL}/documents/courses/${courseId}/documents/${docId}/download`;
+      
+      console.log('📥 Downloading via:', downloadUrl);
+      
+      // Fetch with authentication
+      const response = await fetch(downloadUrl, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Download failed with status: ${response.status}`);
+      }
+
+      // Get the blob from response
+      const blob = await response.blob();
+      
+      // Create download link
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      
+      // Set filename from Content-Disposition header or use document title
+      const contentDisposition = response.headers.get('Content-Disposition');
+      let filename = document.original_filename || `${document.title}.${document.file_type || 'pdf'}`;
+      
+      if (contentDisposition) {
+        const match = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+        if (match && match[1]) {
+          filename = match[1].replace(/['"]/g, '');
+        }
+      }
+      
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      
+      // Clean up
+      setTimeout(() => {
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+      }, 100);
+      
+      // Mark as completed
+      markAsCompleted(selectedCategory.course_category, 'documents', docId);
+      
+    } catch (error) {
+      console.error('❌ Download error:', error);
+      
+      // Ultimate fallback: Open in new tab
+      if (document.file_url) {
+        window.open(document.file_url, '_blank');
+      } else {
+        alert('Download failed. Please try again or contact support.');
+      }
+    } finally {
+      setDownloadLoading(prev => ({ ...prev, [docId]: false }));
     }
-  }
-};
+  };
 
-
-// Also add this helper function to check if a document is stored locally
-const isLocalDocument = (document) => {
-  return document.file_url && (
-    document.file_url.startsWith('/') || 
-    document.file_url.includes('localhost') || 
-    document.file_url.includes('render.com') ||
-    document.file_url.includes('/api/documents/local/')
-  );
-};
-
-  // VIDEO VIEW FUNCTION
+  // ✅ VIDEO VIEW FUNCTION (Unchanged - works with Cloudinary)
   const handleVideoView = (video) => {
     if (!video.video_url) {
       alert('Video is not available for viewing.');
@@ -235,7 +233,7 @@ const isLocalDocument = (document) => {
     markAsCompleted(selectedCategory.course_category, 'videos', video._id);
   };
 
-  // VIDEO DOWNLOAD FUNCTION
+  // ✅ VIDEO DOWNLOAD FUNCTION (Unchanged - works with Cloudinary)
   const handleVideoDownload = async (video) => {
     setDownloadLoading(prev => ({ ...prev, [video._id]: true }));
     
@@ -331,20 +329,6 @@ const isLocalDocument = (document) => {
            (category.materials?.documents?.length || 0) + 
            (category.materials?.meetings?.length || 0)
     };
-  };
-
-  // Storage indicator component
-  const StorageIndicator = ({ document }) => {
-    const hasCloudinary = document.file_url?.includes('cloudinary.com');
-    const hasLocal = document.local_file?.exists;
-    
-    return (
-      <div className="flex items-center gap-1 text-xs" title={`Storage: ${hasCloudinary ? 'Cloudinary' : ''} ${hasLocal ? 'Local' : ''}`}>
-        {hasCloudinary && <Cloud className="w-3 h-3 text-blue-500" />}
-        {hasLocal && <HardDrive className="w-3 h-3 text-gray-500" />}
-        {!hasCloudinary && !hasLocal && <AlertCircle className="w-3 h-3 text-red-500" />}
-      </div>
-    );
   };
 
   if (loading) {
@@ -645,7 +629,7 @@ const isLocalDocument = (document) => {
                     </div>
                   )}
 
-                  {/* Documents Section - UPDATED WITH DUAL STORAGE SUPPORT */}
+                  {/* Documents Section - FIXED for Local Storage */}
                   {(activeTab === 'all' || activeTab === 'documents') && selectedCategory.materials?.documents?.length > 0 && (
                     <div>
                       <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
@@ -671,8 +655,11 @@ const isLocalDocument = (document) => {
                               <div className="flex-1">
                                 <div className="flex items-center gap-2">
                                   <h4 className="font-semibold text-gray-900">{document.title || 'Untitled Document'}</h4>
-                                  {/* Storage Indicator */}
-                                  <StorageIndicator document={document} />
+                                  {/* Local Storage Indicator */}
+                                  <span className="text-xs bg-orange-100 text-orange-800 px-2 py-1 rounded-full flex items-center gap-1">
+                                    <HardDrive className="w-3 h-3" />
+                                    Local
+                                  </span>
                                 </div>
                                 <p className="text-sm text-gray-600 mt-1">by {document.teacher_name || 'Unknown Teacher'}</p>
                                 <p className="text-xs text-gray-500">Course: {document.course_title || 'Unknown Course'}</p>
@@ -706,47 +693,28 @@ const isLocalDocument = (document) => {
                               <span>{formatFileSize(document.file_size)}</span>
                             </div>
 
-<div className="flex gap-2">
-  <button
-    onClick={() => handleDocumentView(document)}
-    className="flex-1 bg-gray-600 text-white py-2 px-3 rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors flex items-center justify-center gap-2"
-  >
-    <Eye className="w-4 h-4" />
-    View Document
-  </button>
-  <button
-    onClick={() => handleDocumentDownload(document)}
-    disabled={downloadLoading[document._id]}
-    className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
-      isLocalDocument(document) 
-        ? 'bg-orange-600 hover:bg-orange-700' 
-        : 'bg-green-600 hover:bg-green-700'
-    } text-white disabled:opacity-50`}
-  >
-    {downloadLoading[document._id] ? (
-      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-    ) : (
-      <>
-        <Download className="w-4 h-4" />
-        {isLocalDocument(document) ? 'Download (Local)' : 'Download'}
-      </>
-    )}
-  </button>
-</div>
-                            
-                            {/* Storage info tooltip */}
-                            <div className="mt-2 text-xs text-gray-400 flex items-center gap-2">
-                              {document.file_url?.includes('cloudinary.com') ? (
-                                <span className="flex items-center gap-1">
-                                  <Cloud className="w-3 h-3" /> Cloudinary CDN
-                                </span>
-                              ) : (
-                                <span className="flex items-center gap-1">
-                                  <HardDrive className="w-3 h-3" /> Local Storage
-                                </span>
-                              )}
-                              <span>•</span>
-                              <span>Smart fallback enabled</span>
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => handleDocumentView(document)}
+                                className="flex-1 bg-gray-600 text-white py-2 px-3 rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors flex items-center justify-center gap-2"
+                              >
+                                <Eye className="w-4 h-4" />
+                                View Document
+                              </button>
+                              <button
+                                onClick={() => handleDocumentDownload(document)}
+                                disabled={downloadLoading[document._id]}
+                                className="flex-1 bg-orange-600 text-white py-2 px-3 rounded-lg text-sm font-medium hover:bg-orange-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                              >
+                                {downloadLoading[document._id] ? (
+                                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                ) : (
+                                  <>
+                                    <Download className="w-4 h-4" />
+                                    Download (Local)
+                                  </>
+                                )}
+                              </button>
                             </div>
                           </motion.div>
                         ))}
@@ -754,7 +722,7 @@ const isLocalDocument = (document) => {
                     </div>
                   )}
 
-                  {/* Meetings Section */}
+                  {/* Meetings Section (unchanged) */}
                   {(activeTab === 'all' || activeTab === 'meetings') && selectedCategory.materials?.meetings?.length > 0 && (
                     <div>
                       <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
@@ -776,6 +744,7 @@ const isLocalDocument = (document) => {
                             animate={{ opacity: 1, x: 0 }}
                             transition={{ delay: index * 0.1 }}
                           >
+                            {/* Meeting content - same as before */}
                             <div className="flex items-start justify-between mb-3">
                               <div className="flex-1">
                                 <h4 className="font-semibold text-gray-900">{meeting.title || 'Untitled Meeting'}</h4>

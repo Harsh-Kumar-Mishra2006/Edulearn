@@ -762,6 +762,16 @@ const ProgressBar = ({ progress, stage }) => {
       default: return 'Uploading...';
     }
   };
+  // Reset file input after successful upload
+useEffect(() => {
+  if (uploadStage === 'complete') {
+    // Reset file state
+    setFile(null);
+    // Reset file input
+    const fileInput = document.getElementById('file-upload');
+    if (fileInput) fileInput.value = '';
+  }
+}, [uploadStage,setFile]);
 
   return (
     <div className="space-y-2">
@@ -1777,16 +1787,6 @@ const DocumentViewerModal = ({ isOpen, onClose, documentUrl, title, file_type })
   );
 };
 
-// Reset file input after successful upload
-useEffect(() => {
-  if (uploadStage === 'complete') {
-    // Reset file state
-    setFile(null);
-    // Reset file input
-    const fileInput = document.getElementById('file-upload');
-    if (fileInput) fileInput.value = '';
-  }
-}, [uploadStage]);
   return (
     <motion.div
       className="bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-6 mt-6"
