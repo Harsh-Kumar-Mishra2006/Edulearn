@@ -93,134 +93,158 @@ const MyLearning = () => {
   };
 
   // ✅ FIXED: Document View - Uses documentRoutes
-  const handleDocumentView = async (document) => {
-    try {
-      const token = localStorage.getItem('token');
-      const courseId = document.course_id;
-      
-      if (!courseId) {
-        console.error('❌ No course_id found:', document);
-        alert('Cannot view document: missing course information');
-        return;
-      }
+  // Mylearning.jsx - REPLACE these functions
 
-      // Use the document view endpoint
-      const viewUrl = `${API_BASE_URL}/documents/courses/${courseId}/documents/${document._id}/view`;
+// ✅ COMPLETELY FIXED: Document View - Opens in new tab properly
+const handleDocumentView = async (document) => {
+  try {
+    const token = localStorage.getItem('token');
+    const courseId = document.course_id;
+    
+    if (!courseId) {
+      console.error('❌ No course_id found:', document);
+      alert('Cannot view document: missing course information');
+      return;
+    }
+
+    // Use the document view endpoint
+    const viewUrl = `${API_BASE_URL}/documents/courses/${courseId}/documents/${document._id}/view`;
+    
+    console.log('👁️ Viewing document via:', viewUrl);
+    
+    // For PDFs and images, we can open in a new tab directly with authentication
+    const isPdf = document.file_type === 'pdf' || document.file_type?.toLowerCase() === 'pdf';
+    const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].includes(document.file_type?.toLowerCase());
+    
+    if (isPdf || isImage) {
+      // Create a temporary iframe to handle the authenticated request
+      const iframe = document.createElement('iframe');
+      iframe.style.display = 'none';
+      document.body.appendChild(iframe);
       
-      console.log('👁️ Viewing document via:', viewUrl);
-      
-      // Open in new tab with authentication
+      // Fetch with authentication and get blob
       const response = await fetch(viewUrl, {
-        method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`
         }
       });
-
-      if (response.ok) {
-        // Get the blob from response
-        const blob = await response.blob();
-        
-        // Create object URL and open in new tab
-        const url = window.URL.createObjectURL(blob);
-        window.open(url, '_blank');
-        
-        // Clean up after a delay
-        setTimeout(() => {
-          window.URL.revokeObjectURL(url);
-        }, 100);
-      } else {
+      
+      if (!response.ok) {
         throw new Error(`View failed with status: ${response.status}`);
       }
       
-      // Mark as completed
-      markAsCompleted(selectedCategory.course_category, 'documents', document._id);
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
       
-    } catch (error) {
-      console.error('❌ View error:', error);
+      // Open in new tab
+      window.open(blobUrl, '_blank');
       
-      // Fallback: Try direct download instead
-      alert('Unable to view document. Please try downloading instead.');
+      // Clean up after a delay
+      setTimeout(() => {
+        window.URL.revokeObjectURL(blobUrl);
+        document.body.removeChild(iframe);
+      }, 100);
+    } else {
+      // For other file types, trigger download
       handleDocumentDownload(document);
     }
-  };
+    
+    // Mark as completed
+    markAsCompleted(selectedCategory?.course_category, 'documents', document._id);
+    
+  } catch (error) {
+    console.error('❌ View error:', error);
+    alert('Unable to view document. Please try downloading instead.');
+    handleDocumentDownload(document);
+  }
+};
 
-  // ✅ FIXED: Document Download - Uses documentRoutes
-  const handleDocumentDownload = async (document) => {
-    const docId = document._id;
-    setDownloadLoading(prev => ({ ...prev, [docId]: true }));
+// ✅ COMPLETELY FIXED: Document Download - Works with local storage
+const handleDocumentDownload = async (document) => {
+  const docId = document._id;
+  setDownloadLoading(prev => ({ ...prev, [docId]: true }));
 
-    try {
-      const token = localStorage.getItem('token');
-      const courseId = document.course_id;
-      
-      if (!courseId) {
-        console.error('❌ No course_id found in document:', document);
-        throw new Error('Course ID not found');
-      }
-
-      // Use the document download endpoint
-      const downloadUrl = `${API_BASE_URL}/documents/courses/${courseId}/documents/${docId}/download`;
-      
-      console.log('📥 Downloading via:', downloadUrl);
-      
-      // Fetch with authentication
-      const response = await fetch(downloadUrl, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error(`Download failed with status: ${response.status}`);
-      }
-
-      // Get the blob from response
-      const blob = await response.blob();
-      
-      // Create download link
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      
-      // Set filename from Content-Disposition header or use document title
-      const contentDisposition = response.headers.get('Content-Disposition');
-      let filename = document.original_filename || `${document.title}.${document.file_type || 'pdf'}`;
-      
-      if (contentDisposition) {
-        const match = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
-        if (match && match[1]) {
-          filename = match[1].replace(/['"]/g, '');
-        }
-      }
-      
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      
-      // Clean up
-      setTimeout(() => {
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
-      }, 100);
-      
-      // Mark as completed
-      markAsCompleted(selectedCategory.course_category, 'documents', docId);
-      
-    } catch (error) {
-      console.error('❌ Download error:', error);
-      
-      // Ultimate fallback: Open in new tab
-      if (document.file_url) {
-        window.open(document.file_url, '_blank');
-      } else {
-        alert('Download failed. Please try again or contact support.');
-      }
-    } finally {
-      setDownloadLoading(prev => ({ ...prev, [docId]: false }));
+  try {
+    const token = localStorage.getItem('token');
+    const courseId = document.course_id;
+    
+    if (!courseId) {
+      console.error('❌ No course_id found in document:', document);
+      throw new Error('Course ID not found');
     }
-  };
+
+    // Use the document download endpoint
+    const downloadUrl = `${API_BASE_URL}/documents/courses/${courseId}/documents/${docId}/download`;
+    
+    console.log('📥 Downloading via:', downloadUrl);
+    
+    // Fetch with authentication
+    const response = await fetch(downloadUrl, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ Download failed:', response.status, errorText);
+      throw new Error(`Download failed with status: ${response.status}`);
+    }
+
+    // Get filename from Content-Disposition header or use document title
+    const contentDisposition = response.headers.get('Content-Disposition');
+    let filename = '';
+    
+    if (contentDisposition) {
+      const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+      if (filenameMatch && filenameMatch[1]) {
+        filename = filenameMatch[1].replace(/['"]/g, '');
+      }
+    }
+    
+    // Fallback filename
+    if (!filename) {
+      filename = document.original_filename || 
+                `${document.title || 'document'}.${document.file_type || 'pdf'}`;
+    }
+
+    console.log('📄 Filename for download:', filename);
+
+    // Get the blob from response
+    const blob = await response.blob();
+    
+    // Create download link
+    const blobUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = blobUrl;
+    link.download = filename;
+    
+    // Append to body, click, and remove
+    document.body.appendChild(link);
+    link.click();
+    
+    // Clean up
+    setTimeout(() => {
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+    }, 100);
+    
+    // Mark as completed
+    if (selectedCategory) {
+      markAsCompleted(selectedCategory.course_category, 'documents', docId);
+    }
+    
+  } catch (error) {
+    console.error('❌ Download error:', error);
+    
+    // Show user-friendly error
+    alert(`Download failed: ${error.message || 'Please try again or contact support'}`);
+    
+  } finally {
+    setDownloadLoading(prev => ({ ...prev, [docId]: false }));
+  }
+};
 
   // ✅ VIDEO VIEW FUNCTION (Unchanged - works with Cloudinary)
   const handleVideoView = (video) => {
@@ -330,6 +354,19 @@ const MyLearning = () => {
            (category.materials?.meetings?.length || 0)
     };
   };
+  // Add this helper function inside the component (before the return statement)
+
+const getDocumentIcon = (fileType) => {
+  const type = fileType?.toLowerCase();
+  if (type === 'pdf') return '📄';
+  if (type === 'doc' || type === 'docx') return '📝';
+  if (type === 'xls' || type === 'xlsx') return '📊';
+  if (type === 'ppt' || type === 'pptx') return '📽️';
+  if (['jpg', 'jpeg', 'png', 'gif'].includes(type)) return '🖼️';
+  if (type === 'txt') return '📃';
+  if (type === 'zip' || type === 'rar') return '🗜️';
+  return '📁';
+};
 
   if (loading) {
     return (
@@ -630,97 +667,117 @@ const MyLearning = () => {
                   )}
 
                   {/* Documents Section - FIXED for Local Storage */}
-                  {(activeTab === 'all' || activeTab === 'documents') && selectedCategory.materials?.documents?.length > 0 && (
-                    <div>
-                      <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
-                        <FileText className="w-6 h-6 text-green-500" />
-                        Documents & Resources ({selectedCategory.materials.documents.length})
-                      </h3>
-                      <div className="grid grid-cols-1 gap-4">
-                        {selectedCategory.materials.documents
-                          .filter(doc => 
-                            doc.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                            doc.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                            doc.course_title?.toLowerCase().includes(searchTerm.toLowerCase())
-                          )
-                          .map((document, index) => (
-                          <motion.div
-                            key={document._id || index}
-                            className="border border-gray-200 rounded-xl p-4 hover:shadow-lg transition-all"
-                            initial={{ opacity: 0, x: -20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            transition={{ delay: index * 0.1 }}
-                          >
-                            <div className="flex items-start justify-between mb-3">
-                              <div className="flex-1">
-                                <div className="flex items-center gap-2">
-                                  <h4 className="font-semibold text-gray-900">{document.title || 'Untitled Document'}</h4>
-                                  {/* Local Storage Indicator */}
-                                  <span className="text-xs bg-orange-100 text-orange-800 px-2 py-1 rounded-full flex items-center gap-1">
-                                    <HardDrive className="w-3 h-3" />
-                                    Local
-                                  </span>
-                                </div>
-                                <p className="text-sm text-gray-600 mt-1">by {document.teacher_name || 'Unknown Teacher'}</p>
-                                <p className="text-xs text-gray-500">Course: {document.course_title || 'Unknown Course'}</p>
-                              </div>
-                              {isMaterialCompleted(selectedCategory.course_category, 'documents', document._id) ? (
-                                <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0" />
-                              ) : (
-                                <button
-                                  onClick={() => markAsCompleted(selectedCategory.course_category, 'documents', document._id)}
-                                  className="text-gray-400 hover:text-green-500 transition-colors"
-                                >
-                                  <CheckCircle className="w-5 h-5" />
-                                </button>
-                              )}
-                            </div>
+                  {/* Documents Section - Updated Card Design */}
+{(activeTab === 'all' || activeTab === 'documents') && selectedCategory.materials?.documents?.length > 0 && (
+  <div>
+    <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
+      <FileText className="w-6 h-6 text-green-500" />
+      Documents & Resources ({selectedCategory.materials.documents.length})
+    </h3>
+    <div className="grid grid-cols-1 gap-4">
+      {selectedCategory.materials.documents
+        .filter(doc => 
+          doc.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          doc.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          doc.course_title?.toLowerCase().includes(searchTerm.toLowerCase())
+        )
+        .map((document, index) => (
+        <motion.div
+          key={document._id || index}
+          className="border border-gray-200 rounded-xl p-4 hover:shadow-lg transition-all"
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: index * 0.1 }}
+        >
+          <div className="flex items-start justify-between mb-3">
+            <div className="flex-1">
+              <div className="flex items-center gap-2">
+                <span className="text-2xl mr-2">{getDocumentIcon(document.file_type)}</span>
+                <div>
+                  <h4 className="font-semibold text-gray-900">{document.title || 'Untitled Document'}</h4>
+                  <div className="flex items-center gap-2 mt-1">
+                    {/* Local Storage Indicator */}
+                    <span className="text-xs bg-orange-100 text-orange-800 px-2 py-1 rounded-full flex items-center gap-1">
+                      <HardDrive className="w-3 h-3" />
+                      Local Storage
+                    </span>
+                    <span className={`text-xs px-2 py-1 rounded-full capitalize ${
+                      document.document_type === 'notes' ? 'bg-blue-100 text-blue-800' :
+                      document.document_type === 'assignment' ? 'bg-purple-100 text-purple-800' :
+                      document.document_type === 'slides' ? 'bg-orange-100 text-orange-800' :
+                      'bg-gray-100 text-gray-800'
+                    }`}>
+                      {document.document_type || 'document'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <p className="text-sm text-gray-600 mt-2">by {document.teacher_name || 'Unknown Teacher'}</p>
+              <p className="text-xs text-gray-500">Course: {document.course_title || 'Unknown Course'}</p>
+            </div>
+            {isMaterialCompleted(selectedCategory.course_category, 'documents', document._id) ? (
+              <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0" />
+            ) : (
+              <button
+                onClick={() => markAsCompleted(selectedCategory.course_category, 'documents', document._id)}
+                className="text-gray-400 hover:text-green-500 transition-colors"
+                title="Mark as completed"
+              >
+                <CheckCircle className="w-5 h-5" />
+              </button>
+            )}
+          </div>
 
-                            <p className="text-sm text-gray-600 mb-3">{document.description || 'No description available'}</p>
+          {document.description && (
+            <p className="text-sm text-gray-600 mb-3">{document.description}</p>
+          )}
 
-                            <div className="flex items-center justify-between text-sm text-gray-500 mb-3">
-                              <div className="flex items-center gap-2">
-                                <span className={`px-2 py-1 rounded text-xs capitalize ${
-                                  document.document_type === 'notes' ? 'bg-blue-100 text-blue-800' :
-                                  document.document_type === 'assignment' ? 'bg-purple-100 text-purple-800' :
-                                  document.document_type === 'slides' ? 'bg-orange-100 text-orange-800' :
-                                  'bg-gray-100 text-gray-800'
-                                }`}>
-                                  {document.document_type || 'document'}
-                                </span>
-                                <span className="text-xs uppercase">{document.file_type || 'file'}</span>
-                              </div>
-                              <span>{formatFileSize(document.file_size)}</span>
-                            </div>
+          <div className="flex items-center justify-between text-sm text-gray-500 mb-3">
+            <div className="flex items-center gap-2">
+              <span className="text-xs uppercase bg-gray-100 px-2 py-1 rounded">
+                {document.file_type || 'FILE'}
+              </span>
+            </div>
+            <span>{formatFileSize(document.file_size)}</span>
+          </div>
 
-                            <div className="flex gap-2">
-                              <button
-                                onClick={() => handleDocumentView(document)}
-                                className="flex-1 bg-gray-600 text-white py-2 px-3 rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors flex items-center justify-center gap-2"
-                              >
-                                <Eye className="w-4 h-4" />
-                                View Document
-                              </button>
-                              <button
-                                onClick={() => handleDocumentDownload(document)}
-                                disabled={downloadLoading[document._id]}
-                                className="flex-1 bg-orange-600 text-white py-2 px-3 rounded-lg text-sm font-medium hover:bg-orange-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
-                              >
-                                {downloadLoading[document._id] ? (
-                                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                                ) : (
-                                  <>
-                                    <Download className="w-4 h-4" />
-                                    Download (Local)
-                                  </>
-                                )}
-                              </button>
-                            </div>
-                          </motion.div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+          <div className="flex gap-2">
+            <button
+              onClick={() => handleDocumentView(document)}
+              disabled={downloadLoading[document._id]}
+              className="flex-1 bg-blue-600 text-white py-2 px-3 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              <Eye className="w-4 h-4" />
+              View
+            </button>
+            <button
+              onClick={() => handleDocumentDownload(document)}
+              disabled={downloadLoading[document._id]}
+              className="flex-1 bg-orange-600 text-white py-2 px-3 rounded-lg text-sm font-medium hover:bg-orange-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              {downloadLoading[document._id] ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  Downloading...
+                </>
+              ) : (
+                <>
+                  <Download className="w-4 h-4" />
+                  Download
+                </>
+              )}
+            </button>
+          </div>
+          
+          {/* Debug info - remove in production */}
+          {/* <div className="text-xs text-gray-400 mt-2">
+            ID: {document._id} | Course: {document.course_id}
+          </div> */}
+        </motion.div>
+      ))}
+    </div>
+  </div>
+)}
 
                   {/* Meetings Section (unchanged) */}
                   {(activeTab === 'all' || activeTab === 'meetings') && selectedCategory.materials?.meetings?.length > 0 && (

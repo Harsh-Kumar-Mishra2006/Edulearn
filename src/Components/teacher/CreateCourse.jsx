@@ -462,6 +462,8 @@ const UploadModal = ({ type, courses, onClose, onSuccess }) => {
   };
 
   // ==================== DOCUMENT UPLOAD - LOCAL STORAGE ONLY ====================
+// In UploadModal component - REPLACE the entire handleDocumentSubmit function
+
 const handleDocumentSubmit = async (e) => {
   e.preventDefault();
   
@@ -484,38 +486,33 @@ const handleDocumentSubmit = async (e) => {
     return;
   }
 
-  // Validate course ID format (MongoDB ObjectId is 24 characters)
-  if (!uploadData.course_id || uploadData.course_id.length !== 24) {
-    setMessage({ type: 'error', text: 'Invalid course selected. Please refresh and try again.' });
-    return;
-  }
-
   setUploading(true);
-  setUploadProgress(0);
-  setMessage({ type: '', text: '' });
+  setUploadProgress(10);
+  setMessage({ type: 'info', text: '📤 Preparing upload...' });
   setUploadStage('uploading');
 
   try {
-    // Step 1: Upload to local server
-    setMessage({ type: 'info', text: '📤 Uploading to local storage...' });
-    
+    // Create FormData
     const formData = new FormData();
     formData.append('document', file);
-    formData.append('title', uploadData.title);
+    formData.append('title', uploadData.title || file.name.replace(/\.[^/.]+$/, ""));
     formData.append('description', uploadData.description || '');
-    formData.append('document_type', uploadData.document_type);
-    formData.append('is_public', uploadData.is_public);
-    formData.append('file_size', file.size.toString());
-    formData.append('mimetype', file.type);
-    formData.append('original_name', file.name);
-    formData.append('file_extension', file.name.split('.').pop().toLowerCase());
+    formData.append('document_type', uploadData.document_type || 'notes');
+    formData.append('is_public', uploadData.is_public ? 'true' : 'false');
+
+    // Log what we're sending
+    console.log('📦 Sending document upload:', {
+      courseId: uploadData.course_id,
+      title: uploadData.title || file.name,
+      document_type: uploadData.document_type,
+      fileSize: file.size,
+      fileName: file.name
+    });
 
     setUploadProgress(30);
-    setUploadStage('saving');
+    setMessage({ type: 'info', text: '📤 Uploading to local storage...' });
 
     // Use the CORRECT endpoint for local document upload
-    console.log('📤 Sending to:', `${API_BASE_URL}/documents/courses/${uploadData.course_id}/upload`);
-    
     const response = await fetch(
       `${API_BASE_URL}/documents/courses/${uploadData.course_id}/upload`,
       {
@@ -528,9 +525,9 @@ const handleDocumentSubmit = async (e) => {
       }
     );
 
-    setUploadProgress(80);
+    setUploadProgress(70);
 
-    // Check response type
+    // Check response
     const contentType = response.headers.get('content-type');
     let responseData;
     
@@ -538,8 +535,8 @@ const handleDocumentSubmit = async (e) => {
       responseData = await response.json();
     } else {
       const text = await response.text();
-      console.error('Non-JSON response:', text);
-      throw new Error(`Server error: ${response.status}`);
+      console.error('❌ Non-JSON response:', text);
+      throw new Error(`Server error: ${response.status} - ${text.substring(0, 100)}`);
     }
 
     if (!response.ok) {
@@ -548,14 +545,25 @@ const handleDocumentSubmit = async (e) => {
 
     setUploadProgress(100);
     setUploadStage('complete');
-
-    console.log('✅ Upload successful:', responseData);
     
+    console.log('✅ Upload successful! Response:', responseData);
+
+    // Show success message
     setMessage({ 
       type: 'success', 
-      text: responseData.message || '✅ Document uploaded to local storage successfully!' 
+      text: `✅ Document uploaded successfully! ${
+        responseData.data?.document?.title || ''
+      }`
     });
-    
+
+    // Store the document ID for future use
+    const uploadedDocument = responseData.data?.document;
+    if (uploadedDocument) {
+      console.log('📄 Document saved with ID:', uploadedDocument._id);
+      console.log('📄 View URL:', responseData.data?.view_url);
+      console.log('📄 Download URL:', responseData.data?.download_url);
+    }
+
     // Clear form
     setFile(null);
     setUploadData(prev => ({
@@ -568,6 +576,7 @@ const handleDocumentSubmit = async (e) => {
     const fileInput = document.getElementById('file-upload');
     if (fileInput) fileInput.value = '';
     
+    // Call onSuccess after delay
     setTimeout(() => {
       onSuccess();
     }, 2000);
@@ -762,6 +771,13 @@ const ProgressBar = ({ progress, stage }) => {
       default: return 'Uploading...';
     }
   };
+
+  const getStageColor = () => {
+    if (stage === 'complete') return 'bg-green-500';
+    if (progress > 70) return 'bg-blue-600';
+    if (progress > 30) return 'bg-blue-500';
+    return 'bg-blue-400';
+  };
   // Reset file input after successful upload
 useEffect(() => {
   if (uploadStage === 'complete') {
@@ -771,25 +787,30 @@ useEffect(() => {
     const fileInput = document.getElementById('file-upload');
     if (fileInput) fileInput.value = '';
   }
-}, [uploadStage,setFile]);
+}, [uploadStage]);
 
   return (
     <div className="space-y-2">
       <div className="flex justify-between text-sm text-gray-600">
         <span>{getStageMessage()}</span>
-        <span>{progress}%</span>
+        <span className="font-mono">{progress}%</span>
       </div>
-      <div className="w-full bg-gray-200 rounded-full h-2.5">
+      <div className="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden">
         <div 
-          className={`h-2.5 rounded-full transition-all duration-300 ${
-            stage === 'complete' ? 'bg-green-500' : 'bg-blue-600'
-          }`}
+          className={`h-2.5 rounded-full transition-all duration-300 ${getStageColor()}`}
           style={{ width: `${progress}%` }}
         ></div>
       </div>
+      {stage === 'complete' && (
+        <p className="text-xs text-green-600 flex items-center gap-1">
+          <CheckCircle className="w-3 h-3" />
+          Document saved to local storage
+        </p>
+      )}
     </div>
   );
 };
+
 
   return (
     <motion.div
@@ -1454,11 +1475,8 @@ const playVideo = (video) => {
   });
 };
 
-  // View document from Cloudinary
-  // View document function
-// Replace the viewDocument function (around line 639)
-// View document function - FIXED
-// View document function - COMPLETELY FIXED
+ 
+// Replace the viewDocument function
 const viewDocument = (doc) => {
   const url = doc.file_url;
   
@@ -1467,11 +1485,16 @@ const viewDocument = (doc) => {
     return;
   }
   
-  console.log('📄 Viewing document:', { title: doc.title, url, file_type: doc.file_type });
+  console.log('📄 Viewing document:', { 
+    title: doc.title, 
+    url, 
+    file_type: doc.file_type,
+    storage: doc.storage_type 
+  });
   
   // For PDFs and images, we can open in new tab directly
-  const isPdf = doc.file_type === 'pdf';
-  const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].includes(doc.file_type);
+  const isPdf = doc.file_type === 'pdf' || doc.file_type?.toLowerCase() === 'pdf';
+  const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].includes(doc.file_type?.toLowerCase());
   
   if (isPdf || isImage) {
     // Open in new tab for better viewing experience
@@ -1486,10 +1509,9 @@ const viewDocument = (doc) => {
     });
   }
 };
-// Download document function
-// Replace the downloadDocument function (around line 662)
-// Download document function - FIXED VERSION
-const downloadDocument = async (doc) => {  // ← renamed parameter to 'doc'
+
+// Replace the downloadDocument function
+const downloadDocument = async (doc) => {
   try {
     const url = doc.file_url;
     
@@ -1497,6 +1519,12 @@ const downloadDocument = async (doc) => {  // ← renamed parameter to 'doc'
       showToast('This file is not available. Please re-upload it.', 'error');
       return;
     }
+
+    console.log('📥 Downloading document:', { 
+      title: doc.title, 
+      url, 
+      file_type: doc.file_type 
+    });
 
     // Extract filename from URL or use document title
     let filename = doc.title || 'document';
@@ -1507,29 +1535,57 @@ const downloadDocument = async (doc) => {  // ← renamed parameter to 'doc'
       filename = `${filename}.${fileExtension}`;
     }
     
-    // For Cloudinary files
-    let downloadUrl = url;
-    if (url.includes('cloudinary.com')) {
-      // Cloudinary supports forced download with flag
-      downloadUrl = url.includes('fl_attachment') ? url : url.replace('/upload/', '/upload/fl_attachment/');
-    }
-    
-    // Create a temporary link for download - using global document object
-    const link = window.document.createElement('a');  // ← explicitly use window.document
-    link.href = downloadUrl;
-    link.download = filename;
-    link.target = '_blank';
-    link.rel = 'noopener noreferrer';
-    
-    window.document.body.appendChild(link);
-    link.click();
-    
-    // Clean up after a delay
-    setTimeout(() => {
-      if (window.document.body.contains(link)) {
-        window.document.body.removeChild(link);
+    // For local files, we need to use the download endpoint
+    if (url.includes('/view')) {
+      // Convert view URL to download URL
+      const downloadUrl = url.replace('/view', '/download');
+      
+      // Fetch with authentication
+      const token = localStorage.getItem('token');
+      const response = await fetch(downloadUrl, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error('Download failed');
       }
-    }, 100);
+      
+      // Get the blob
+      const blob = await response.blob();
+      
+      // Create download link
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = window.document.createElement('a');
+      link.href = blobUrl;
+      link.download = filename;
+      window.document.body.appendChild(link);
+      link.click();
+      
+      // Clean up
+      setTimeout(() => {
+        window.URL.revokeObjectURL(blobUrl);
+        if (window.document.body.contains(link)) {
+          window.document.body.removeChild(link);
+        }
+      }, 100);
+    } else {
+      // For Cloudinary files, direct download
+      const link = window.document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      window.document.body.appendChild(link);
+      link.click();
+      
+      setTimeout(() => {
+        if (window.document.body.contains(link)) {
+          window.document.body.removeChild(link);
+        }
+      }, 100);
+    }
     
     showToast('Download started!', 'success');
     
