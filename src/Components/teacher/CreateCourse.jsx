@@ -464,6 +464,7 @@ const UploadModal = ({ type, courses, onClose, onSuccess }) => {
   // ==================== DOCUMENT UPLOAD - LOCAL STORAGE ONLY ====================
 // In UploadModal component - REPLACE the entire handleDocumentSubmit function
 
+// ==================== FIXED: DOCUMENT UPLOAD - LOCAL STORAGE ONLY ====================
 const handleDocumentSubmit = async (e) => {
   e.preventDefault();
   
@@ -488,7 +489,7 @@ const handleDocumentSubmit = async (e) => {
 
   setUploading(true);
   setUploadProgress(10);
-  setMessage({ type: 'info', text: '📤 Preparing upload...' });
+  setMessage({ type: 'info', text: '📤 Preparing document upload...' });
   setUploadStage('uploading');
 
   try {
@@ -500,19 +501,19 @@ const handleDocumentSubmit = async (e) => {
     formData.append('document_type', uploadData.document_type || 'notes');
     formData.append('is_public', uploadData.is_public ? 'true' : 'false');
 
-    // Log what we're sending
-    console.log('📦 Sending document upload:', {
+    console.log('📦 Sending document upload to local storage:', {
       courseId: uploadData.course_id,
       title: uploadData.title || file.name,
       document_type: uploadData.document_type,
       fileSize: file.size,
-      fileName: file.name
+      fileName: file.name,
+      endpoint: `${API_BASE_URL}/documents/courses/${uploadData.course_id}/upload`
     });
 
     setUploadProgress(30);
     setMessage({ type: 'info', text: '📤 Uploading to local storage...' });
 
-    // Use the CORRECT endpoint for local document upload
+    // CORRECT ENDPOINT: Using documentRoutes for local storage upload
     const response = await fetch(
       `${API_BASE_URL}/documents/courses/${uploadData.course_id}/upload`,
       {
@@ -546,17 +547,15 @@ const handleDocumentSubmit = async (e) => {
     setUploadProgress(100);
     setUploadStage('complete');
     
-    console.log('✅ Upload successful! Response:', responseData);
+    console.log('✅ Document uploaded successfully to local storage!', responseData);
 
-    // Show success message
+    // Show success message with document info
     setMessage({ 
       type: 'success', 
-      text: `✅ Document uploaded successfully! ${
-        responseData.data?.document?.title || ''
-      }`
+      text: `✅ Document uploaded successfully! ${responseData.data?.document?.title || ''}`
     });
 
-    // Store the document ID for future use
+    // Log the important URLs for debugging
     const uploadedDocument = responseData.data?.document;
     if (uploadedDocument) {
       console.log('📄 Document saved with ID:', uploadedDocument._id);
@@ -582,7 +581,7 @@ const handleDocumentSubmit = async (e) => {
     }, 2000);
 
   } catch (error) {
-    console.error('❌ Upload error:', error);
+    console.error('❌ Document upload error:', error);
     setMessage({ 
       type: 'error', 
       text: error.message || 'Network error occurred. Please try again.' 
@@ -736,58 +735,58 @@ const handleDocumentSubmit = async (e) => {
     }
   };
 
-  const getModalTitle = () => {
-    switch (type) {
-      case 'video': return 'Upload Video to Cloudinary';
-      case 'document': return 'Upload Document (Cloudinary + Local)';
-      case 'meeting': return 'Schedule Meeting';
-      default: return 'Upload';
-    }
-  };
+  // Update getModalTitle function
+const getModalTitle = () => {
+  switch (type) {
+    case 'video': return 'Upload Video to Cloudinary';
+    case 'document': return 'Upload Document (Local Storage Only)'; // Changed from "Cloudinary + Local"
+    case 'meeting': return 'Schedule Meeting';
+    default: return 'Upload';
+  }
+};
 
-  const getIcon = () => {
-    switch (type) {
-      case 'video': return <Video className="w-6 h-6" />;
-      case 'document': return (
-        <div className="flex items-center gap-1">
-          <FileText className="w-5 h-5" />
-          <Cloud className="w-4 h-4 text-blue-300" />
-          <HardDrive className="w-4 h-4 text-gray-300" />
-        </div>
-      );
-      case 'meeting': return <Calendar className="w-6 h-6" />;
-      default: return <Upload className="w-6 h-6" />;
-    }
-  };
+// Update getIcon function - remove Cloudinary icon for documents
+const getIcon = () => {
+  switch (type) {
+    case 'video': return <Video className="w-6 h-6" />;
+    case 'document': return (
+      <div className="flex items-center gap-1">
+        <FileText className="w-5 h-5" />
+        <HardDrive className="w-4 h-4 text-gray-300" /> {/* Only HardDrive icon */}
+      </div>
+    );
+    case 'meeting': return <Calendar className="w-6 h-6" />;
+    default: return <Upload className="w-6 h-6" />;
+  }
+};
 
   // Progress bar component
   // Progress bar component - add this inside UploadModal
-const ProgressBar = ({ progress, stage }) => {
+// Progress bar component - Updated for local storage
+const ProgressBar = ({ progress, stage, type }) => {
   const getStageMessage = () => {
-    switch(stage) {
-      case 'uploading': return 'Uploading to server...';
-      case 'saving': return 'Saving to database...';
-      case 'complete': return 'Upload complete!';
-      default: return 'Uploading...';
+    if (type === 'document') {
+      switch(stage) {
+        case 'uploading': return 'Uploading to local storage...';
+        case 'complete': return 'Saved to local storage!';
+        default: return 'Processing...';
+      }
+    } else if (type === 'video') {
+      switch(stage) {
+        case 'uploading': return 'Uploading to Cloudinary...';
+        case 'complete': return 'Uploaded to Cloudinary!';
+        default: return 'Processing...';
+      }
     }
+    return 'Uploading...';
   };
 
   const getStageColor = () => {
     if (stage === 'complete') return 'bg-green-500';
-    if (progress > 70) return 'bg-blue-600';
-    if (progress > 30) return 'bg-blue-500';
-    return 'bg-blue-400';
+    if (progress > 70) return type === 'document' ? 'bg-orange-600' : 'bg-blue-600';
+    if (progress > 30) return type === 'document' ? 'bg-orange-500' : 'bg-blue-500';
+    return type === 'document' ? 'bg-orange-400' : 'bg-blue-400';
   };
-  // Reset file input after successful upload
-useEffect(() => {
-  if (uploadStage === 'complete') {
-    // Reset file state
-    setFile(null);
-    // Reset file input
-    const fileInput = document.getElementById('file-upload');
-    if (fileInput) fileInput.value = '';
-  }
-}, [uploadStage]);
 
   return (
     <div className="space-y-2">
@@ -801,17 +800,27 @@ useEffect(() => {
           style={{ width: `${progress}%` }}
         ></div>
       </div>
-      {stage === 'complete' && (
+      {stage === 'complete' && type === 'document' && (
         <p className="text-xs text-green-600 flex items-center gap-1">
           <CheckCircle className="w-3 h-3" />
-          Document saved to local storage
+          Document saved to local storage with ID
         </p>
       )}
     </div>
+    
   );
 };
 
-
+ // Reset file input after successful upload
+useEffect(() => {
+  if (uploadStage === 'complete') {
+    // Reset file state
+    setFile(null);
+    // Reset file input
+    const fileInput = document.getElementById('file-upload');
+    if (fileInput) fileInput.value = '';
+  }
+}, [uploadStage]);
   return (
     <motion.div
       className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50"
@@ -1087,16 +1096,19 @@ useEffect(() => {
             </div>
           )}
 
-          {/* Storage Info - Only for documents */}
-          {type === 'document' && (
-            <div className="bg-blue-50 p-3 rounded-lg text-sm text-blue-800">
-              <p className="font-semibold mb-1">📦 Dual Storage System</p>
-              <p className="flex items-center gap-2">
-                <Cloud className="w-4 h-4" /> Cloudinary + <HardDrive className="w-4 h-4" /> Local Storage
-              </p>
-              <p className="text-xs mt-1">Documents are stored on the server's local storage. Students can view and download them securely.</p>
-            </div>
-          )}
+          {/* Storage Info - Updated for Local Storage Only */}
+{type === 'document' && (
+  <div className="bg-orange-50 p-3 rounded-lg text-sm text-orange-800 border border-orange-200">
+    <p className="font-semibold mb-1 flex items-center gap-2">
+      <HardDrive className="w-4 h-4" />
+      Local Storage Only
+    </p>
+    <p className="text-xs">Documents are stored on the server's local storage. Students can view and download them securely using authenticated endpoints.</p>
+    <p className="text-xs mt-2 text-orange-600">
+      View URL: /api/documents/courses/COURSE_ID/documents/DOC_ID/view
+    </p>
+  </div>
+)}
 
           {/* Buttons */}
           <div className="flex gap-3 pt-4">
@@ -1114,25 +1126,22 @@ useEffect(() => {
               className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold hover:shadow-lg transform hover:-translate-y-0.5 disabled:opacity-50 disabled:transform-none transition-all duration-200 flex items-center justify-center gap-2"
             >
               {uploading ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  {type === 'document' && uploadStage === 'cloudinary' ? 'Uploading to Cloudinary...' :
-                   type === 'document' && uploadStage === 'local' ? 'Saving to Local...' :
-                   type === 'meeting' ? 'Scheduling...' : 'Uploading...'}
-                </>
-              ) : (
-                <>
-                  {type === 'meeting' ? <Calendar className="w-4 h-4" /> : 
-                   type === 'document' ? (
-                     <>
-                       <Cloud className="w-4 h-4" />
-                       <HardDrive className="w-4 h-4" />
-                     </>
-                   ) : <Upload className="w-4 h-4" />}
-                  {type === 'meeting' ? 'Schedule Meeting' : 
-                   type === 'document' ? 'Upload to Both' : `Upload ${type}`}
-                </>
-              )}
+  <>
+    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+    {type === 'document' && uploadStage === 'uploading' ? 'Uploading to Local Storage...' :
+     type === 'document' && uploadStage === 'complete' ? 'Complete!' :
+     type === 'meeting' ? 'Scheduling...' : 'Uploading...'}
+  </>
+) : (
+  <>
+    {type === 'meeting' ? <Calendar className="w-4 h-4" /> : 
+     type === 'document' ? <HardDrive className="w-4 h-4" /> : 
+     <Video className="w-4 h-4" />}
+    {type === 'meeting' ? 'Schedule Meeting' : 
+     type === 'document' ? 'Upload to Local Storage' : 
+     `Upload ${type}`}
+  </>
+)}
             </button>
           </div>
         </form>
