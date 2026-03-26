@@ -49,6 +49,15 @@ const MyLearning = () => {
         }
       });
 
+      // Add this debug log in your fetchMyLearningCourses function
+console.log('Document with course_id check:', data.data?.map(cat => ({
+  category: cat.course_category,
+  documents: cat.materials?.documents?.map(doc => ({
+    title: doc.title,
+    course_id: doc.course_id,
+    has_course_id: !!doc.course_id
+  }))
+})));
       if (response.ok) {
         const data = await response.json();
         console.log('Learning data received:', data);
@@ -92,11 +101,7 @@ const MyLearning = () => {
     }
   };
 
-  // ✅ FIXED: Document View - Uses documentRoutes
-  // Mylearning.jsx - REPLACE these functions
-
-// ✅ COMPLETELY FIXED: Document View - Opens in new tab properly
-const handleDocumentView = async (document) => {
+ const handleDocumentView = async (document) => {
   try {
     const token = localStorage.getItem('token');
     const courseId = document.course_id;
@@ -107,22 +112,22 @@ const handleDocumentView = async (document) => {
       return;
     }
 
-    // Use the document view endpoint
     const viewUrl = `${API_BASE_URL}/documents/courses/${courseId}/documents/${document._id}/view`;
     
     console.log('👁️ Viewing document via:', viewUrl);
     
-    // For PDFs and images, we can open in a new tab directly with authentication
+    // ✅ Add token check
+    if (!token) {
+      console.error('❌ No token found');
+      alert('Please login again');
+      return;
+    }
+    
     const isPdf = document.file_type === 'pdf' || document.file_type?.toLowerCase() === 'pdf';
     const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].includes(document.file_type?.toLowerCase());
     
     if (isPdf || isImage) {
-      // Create a temporary iframe to handle the authenticated request
-      const iframe = document.createElement('iframe');
-      iframe.style.display = 'none';
-      document.body.appendChild(iframe);
-      
-      // Fetch with authentication and get blob
+      // Fetch with authentication
       const response = await fetch(viewUrl, {
         headers: {
           'Authorization': `Bearer ${token}`
@@ -130,7 +135,9 @@ const handleDocumentView = async (document) => {
       });
       
       if (!response.ok) {
-        throw new Error(`View failed with status: ${response.status}`);
+        const errorText = await response.text();
+        console.error('❌ View failed:', response.status, errorText);
+        throw new Error(`View failed with status: ${response.status} - ${errorText}`);
       }
       
       const blob = await response.blob();
@@ -139,23 +146,30 @@ const handleDocumentView = async (document) => {
       // Open in new tab
       window.open(blobUrl, '_blank');
       
-      // Clean up after a delay
+      // Clean up
       setTimeout(() => {
         window.URL.revokeObjectURL(blobUrl);
-        document.body.removeChild(iframe);
       }, 100);
     } else {
       // For other file types, trigger download
-      handleDocumentDownload(document);
+      await handleDocumentDownload(document);
     }
     
-    // Mark as completed
-    markAsCompleted(selectedCategory?.course_category, 'documents', document._id);
+    // ✅ Fix: Check if selectedCategory exists before marking as completed
+    if (selectedCategory?.course_category) {
+      await markAsCompleted(selectedCategory.course_category, 'documents', document._id);
+    } else {
+      console.warn('⚠️ Cannot mark as completed - no selected category');
+    }
     
   } catch (error) {
     console.error('❌ View error:', error);
-    alert('Unable to view document. Please try downloading instead.');
-    handleDocumentDownload(document);
+    alert(`Unable to view document: ${error.message}. Please try downloading instead.`);
+    // Only try download if view fails and it's not a PDF/image
+    const isPdfOrImage = ['pdf', 'jpg', 'jpeg', 'png', 'gif', 'webp'].includes(document.file_type?.toLowerCase());
+    if (!isPdfOrImage) {
+      await handleDocumentDownload(document);
+    }
   }
 };
 
@@ -682,6 +696,7 @@ const getDocumentIcon = (fileType) => {
           doc.course_title?.toLowerCase().includes(searchTerm.toLowerCase())
         )
         .map((document, index) => (
+           
         <motion.div
           key={document._id || index}
           className="border border-gray-200 rounded-xl p-4 hover:shadow-lg transition-all"
