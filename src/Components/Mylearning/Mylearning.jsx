@@ -49,7 +49,11 @@ const MyLearning = () => {
         }
       });
 
-      // Add this debug log in your fetchMyLearningCourses function
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Learning data received:', data);
+        // Add this debug log in your fetchMyLearningCourses function
 console.log('Document with course_id check:', data.data?.map(cat => ({
   category: cat.course_category,
   documents: cat.materials?.documents?.map(doc => ({
@@ -58,9 +62,6 @@ console.log('Document with course_id check:', data.data?.map(cat => ({
     has_course_id: !!doc.course_id
   }))
 })));
-      if (response.ok) {
-        const data = await response.json();
-        console.log('Learning data received:', data);
         setLearningData(data.data || []);
         
         if (data.data && data.data.length > 0) {
