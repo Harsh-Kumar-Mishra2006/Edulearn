@@ -50,24 +50,27 @@ const MyLearning = () => {
       });
 
       
-      if (response.ok) {
-        const data = await response.json();
-        console.log('Learning data received:', data);
-        // Add this debug log in your fetchMyLearningCourses function
-console.log('Document with course_id check:', data.data?.map(cat => ({
-  category: cat.course_category,
-  documents: cat.materials?.documents?.map(doc => ({
-    title: doc.title,
-    course_id: doc.course_id,
-    has_course_id: !!doc.course_id
-  }))
-})));
-        setLearningData(data.data || []);
-        
-        if (data.data && data.data.length > 0) {
-          setSelectedCategory(data.data[0]);
-        }
-      } else {
+      // Add this after fetching data in fetchMyLearningCourses
+if (response.ok) {
+  const data = await response.json();
+  console.log('Learning data received:', data);
+  
+  // ✅ Remove duplicate categories based on course_category
+  const uniqueData = data.data.reduce((acc, current) => {
+    const exists = acc.find(item => item.course_category === current.course_category);
+    if (!exists) {
+      acc.push(current);
+    }
+    return acc;
+  }, []);
+  
+  console.log('Unique categories:', uniqueData.map(c => c.course_category));
+  setLearningData(uniqueData);
+  
+  if (uniqueData.length > 0) {
+    setSelectedCategory(uniqueData[0]);
+  }
+} else {
         console.error('Failed to fetch learning courses');
         setLearningData([]);
       }
