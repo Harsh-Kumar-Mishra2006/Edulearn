@@ -1485,122 +1485,333 @@ const playVideo = (video) => {
 };
 
  
-// Replace the viewDocument function
-const viewDocument = (doc) => {
-  const url = doc.file_url;
-  
-  if (!url) {
-    showToast('This document is not available. Please re-upload it.', 'error');
-    return;
-  }
-  
-  console.log('📄 Viewing document:', { 
-    title: doc.title, 
-    url, 
-    file_type: doc.file_type,
-    storage: doc.storage_type 
-  });
-  
-  // For PDFs and images, we can open in new tab directly
-  const isPdf = doc.file_type === 'pdf' || doc.file_type?.toLowerCase() === 'pdf';
-  const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].includes(doc.file_type?.toLowerCase());
-  
-  if (isPdf || isImage) {
-    // Open in new tab for better viewing experience
-    window.open(url, '_blank');
-  } else {
-    // For other files, use the modal
-    setDocumentViewer({
-      isOpen: true,
-      url: url,
-      title: doc.title,
-      file_type: doc.file_type
-    });
-  }
-};
-
-// Replace the downloadDocument function
-const downloadDocument = async (doc) => {
+// Replace the viewDocument function in CreateCourse.jsx
+const viewDocument = async (doc) => {
   try {
-    const url = doc.file_url;
+    console.log('📄 Viewing document:', { 
+      title: doc.title, 
+      file_type: doc.file_type,
+      docId: doc._id,
+      courseId: doc.course_id
+    });
     
-    if (!url) {
-      showToast('This file is not available. Please re-upload it.', 'error');
+    const token = localStorage.getItem('token');
+    if (!token) {
+      showToast('Please login again', 'error');
       return;
     }
-
-    console.log('📥 Downloading document:', { 
-      title: doc.title, 
-      url, 
-      file_type: doc.file_type 
-    });
-
-    // Extract filename from URL or use document title
-    let filename = doc.title || 'document';
-    const fileExtension = doc.file_type;
     
-    // Add extension if not present
-    if (fileExtension && !filename.toLowerCase().endsWith(`.${fileExtension}`)) {
-      filename = `${filename}.${fileExtension}`;
+    // Determine if it's a local storage document
+    const isLocalStorage = doc.storage_type === 'local' || 
+                          (doc.file_url && doc.file_url.includes('/documents/courses/')) ||
+                          (doc.course_id && doc._id);
+    
+    const fileType = doc.file_type?.toLowerCase();
+    const isPdf = fileType === 'pdf';
+    const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].includes(fileType);
+    const isOfficeDoc = ['doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx'].includes(fileType);
+    const isText = ['txt', 'rtf'].includes(fileType);
+    
+    let viewUrl;
+    
+    if (isLocalStorage) {
+      viewUrl = `${API_BASE_URL}/documents/courses/${doc.course_id}/documents/${doc._id}/view`;
+      console.log('🔗 Local storage view URL:', viewUrl);
+    } else if (doc.file_url && doc.file_url.includes('cloudinary.com')) {
+      viewUrl = doc.file_url;
+    } else {
+      viewUrl = doc.file_url;
     }
     
-    // For local files, we need to use the download endpoint
-    if (url.includes('/view')) {
-      // Convert view URL to download URL
-      const downloadUrl = url.replace('/view', '/download');
+    if (!viewUrl) {
+      throw new Error('No valid URL found for this document');
+    }
+    
+    // For PDFs and Images - fetch and display directly
+    if (isPdf || isImage) {
+      console.log('📡 Fetching PDF/Image document...');
       
-      // Fetch with authentication
-      const token = localStorage.getItem('token');
-      const response = await fetch(downloadUrl, {
+      const response = await fetch(viewUrl, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': isPdf ? 'application/pdf' : '*/*'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch document: ${response.status}`);
+      }
+      
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      
+      // Open in new tab
+      const newWindow = window.open();
+      if (newWindow) {
+        newWindow.document.title = doc.title || 'Document';
+        
+        if (isPdf) {
+          const iframe = newWindow.document.createElement('iframe');
+          iframe.src = blobUrl;
+          iframe.style.width = '100%';
+          iframe.style.height = '100%';
+          iframe.style.border = 'none';
+          newWindow.document.body.style.margin = '0';
+          newWindow.document.body.style.padding = '0';
+          newWindow.document.body.style.height = '100vh';
+          newWindow.document.body.appendChild(iframe);
+        } else {
+          const img = newWindow.document.createElement('img');
+          img.src = blobUrl;
+          img.style.maxWidth = '100%';
+          img.style.maxHeight = '100vh';
+          img.style.objectFit = 'contain';
+          newWindow.document.body.style.display = 'flex';
+          newWindow.document.body.style.justifyContent = 'center';
+          newWindow.document.body.style.alignItems = 'center';
+          newWindow.document.body.style.margin = '0';
+          newWindow.document.body.style.height = '100vh';
+          newWindow.document.body.style.backgroundColor = '#1a1a1a';
+          newWindow.document.body.appendChild(img);
+        }
+        
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+      } else {
+        setDocumentViewer({
+          isOpen: true,
+          url: blobUrl,
+          title: doc.title,
+          file_type: doc.file_type
+        });
+      }
+    } 
+    // For Office documents (docx, pptx, xlsx) - use Google Docs Viewer
+    else if (isOfficeDoc) {
+      console.log('📊 Opening Office document with Google Viewer...');
+      
+      // Use Google Docs Viewer for Office files
+      const googleViewerUrl = `https://docs.google.com/viewer?url=${encodeURIComponent(viewUrl)}&embedded=true`;
+      
+      // Fetch the actual file first to ensure it's accessible
+      const response = await fetch(viewUrl, {
+        method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`
         }
       });
       
       if (!response.ok) {
-        throw new Error('Download failed');
+        throw new Error(`Failed to fetch document: ${response.status}`);
       }
       
-      // Get the blob
       const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
       
-      // Create download link
-      const blobUrl = window.URL.createObjectURL(blob);
-      const link = window.document.createElement('a');
-      link.href = blobUrl;
-      link.download = filename;
-      window.document.body.appendChild(link);
-      link.click();
+      // For Office docs, use Google Docs Viewer with the blob URL
+      const finalViewerUrl = `https://docs.google.com/gview?url=${encodeURIComponent(blobUrl)}&embedded=true`;
       
-      // Clean up
-      setTimeout(() => {
-        window.URL.revokeObjectURL(blobUrl);
-        if (window.document.body.contains(link)) {
-          window.document.body.removeChild(link);
-        }
-      }, 100);
-    } else {
-      // For Cloudinary files, direct download
-      const link = window.document.createElement('a');
-      link.href = url;
-      link.download = filename;
-      link.target = '_blank';
-      link.rel = 'noopener noreferrer';
-      window.document.body.appendChild(link);
-      link.click();
-      
-      setTimeout(() => {
-        if (window.document.body.contains(link)) {
-          window.document.body.removeChild(link);
-        }
-      }, 100);
+      const newWindow = window.open();
+      if (newWindow) {
+        newWindow.document.title = doc.title || 'Document';
+        
+        const iframe = newWindow.document.createElement('iframe');
+        iframe.src = finalViewerUrl;
+        iframe.style.width = '100%';
+        iframe.style.height = '100%';
+        iframe.style.border = 'none';
+        newWindow.document.body.style.margin = '0';
+        newWindow.document.body.style.padding = '0';
+        newWindow.document.body.style.height = '100vh';
+        newWindow.document.body.appendChild(iframe);
+        
+        // Clean up blob URL after a delay
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 30000);
+      } else {
+        // If popup blocked, show modal with download option
+        setDocumentViewer({
+          isOpen: true,
+          url: blobUrl,
+          title: doc.title,
+          file_type: doc.file_type
+        });
+      }
     }
+    // For text files - display directly
+    else if (isText) {
+      console.log('📝 Opening text document...');
+      
+      const response = await fetch(viewUrl, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch document: ${response.status}`);
+      }
+      
+      const text = await response.text();
+      
+      const newWindow = window.open();
+      if (newWindow) {
+        newWindow.document.title = doc.title || 'Document';
+        newWindow.document.body.style.fontFamily = 'monospace';
+        newWindow.document.body.style.whiteSpace = 'pre-wrap';
+        newWindow.document.body.style.padding = '20px';
+        newWindow.document.body.style.margin = '0';
+        newWindow.document.body.style.backgroundColor = '#f5f5f5';
+        const pre = newWindow.document.createElement('pre');
+        pre.textContent = text;
+        pre.style.margin = '0';
+        pre.style.fontSize = '14px';
+        pre.style.lineHeight = '1.5';
+        newWindow.document.body.appendChild(pre);
+      }
+    }
+    // For all other file types - offer download
+    else {
+      console.log('Unsupported file type for viewing, offering download instead');
+      const shouldDownload = window.confirm(
+        `File type "${doc.file_type}" cannot be previewed directly.\n\nDo you want to download it instead?`
+      );
+      if (shouldDownload) {
+        await downloadDocument(doc);
+      }
+    }
+    
+  } catch (error) {
+    console.error('❌ View error:', error);
+    const shouldDownload = window.confirm(
+      `Unable to view document: ${error.message}\n\nWould you like to download it instead?`
+    );
+    if (shouldDownload) {
+      await downloadDocument(doc);
+    }
+  }
+};
+
+// Replace the downloadDocument function in CreateCourse.jsx
+const downloadDocument = async (doc) => {
+  try {
+    const url = doc.file_url;
+    
+    if (!url) {
+      showToast('This file is not available. Please check if it was uploaded correctly.', 'error');
+      return;
+    }
+
+    console.log('📥 Downloading document:', { 
+      title: doc.title, 
+      url, 
+      file_type: doc.file_type,
+      docId: doc._id,
+      courseId: doc.course_id
+    });
+
+    const token = localStorage.getItem('token');
+    if (!token) {
+      showToast('Please login again', 'error');
+      return;
+    }
+
+    // Extract filename
+    let filename = doc.title || 'document';
+    const fileExtension = doc.file_type;
+    if (fileExtension && !filename.toLowerCase().endsWith(`.${fileExtension}`)) {
+      filename = `${filename}.${fileExtension}`;
+    }
+    
+    let downloadUrl;
+    
+    // Check if this is a local storage document (has view/download endpoints)
+    if (url && (url.includes('/view') || url.includes('/documents/courses/'))) {
+      // For local storage documents, construct the download URL properly
+      if (doc.course_id && doc._id) {
+        downloadUrl = `${API_BASE_URL}/documents/courses/${doc.course_id}/documents/${doc._id}/download`;
+      } else {
+        // Try to extract from existing URL
+        downloadUrl = url.replace('/view', '/download');
+      }
+    } else if (url && url.includes('cloudinary.com')) {
+      // For Cloudinary files, add download flag
+      downloadUrl = url.includes('fl_attachment') 
+        ? url 
+        : url.replace('/upload/', '/upload/fl_attachment/');
+    } else {
+      downloadUrl = url;
+    }
+    
+    console.log('📥 Download URL:', downloadUrl);
+    
+    // Fetch with proper headers
+    const response = await fetch(downloadUrl, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': '*/*'
+      },
+      // Important: Don't follow redirects automatically for CORS
+      redirect: 'error'
+    });
+    
+    if (!response.ok) {
+      // If redirect error, try again without redirect: 'error'
+      if (response.status === 0 || response.type === 'opaqueredirect') {
+        const retryResponse = await fetch(downloadUrl, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': '*/*'
+          }
+        });
+        
+        if (!retryResponse.ok) {
+          throw new Error(`Download failed with status: ${retryResponse.status}`);
+        }
+        
+        const blob = await retryResponse.blob();
+        const blobUrl = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        setTimeout(() => {
+          document.body.removeChild(link);
+          window.URL.revokeObjectURL(blobUrl);
+        }, 100);
+        showToast('Download started!', 'success');
+        return;
+      }
+      
+      const errorText = await response.text();
+      throw new Error(`Download failed: ${response.status} - ${errorText.substring(0, 100)}`);
+    }
+    
+    // Get the blob from response
+    const blob = await response.blob();
+    
+    // Create download link
+    const blobUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = blobUrl;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    
+    // Clean up
+    setTimeout(() => {
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+    }, 100);
     
     showToast('Download started!', 'success');
     
   } catch (error) {
-    console.error('Download error:', error);
-    showToast('Failed to download document. Please try again.', 'error');
+    console.error('❌ Download error:', error);
+    showToast(`Download failed: ${error.message || 'Please try again'}`, 'error');
   }
 };
   // Toast notification function

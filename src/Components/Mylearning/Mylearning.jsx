@@ -40,47 +40,64 @@ const MyLearning = () => {
   }, []);
 
   const fetchMyLearningCourses = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE_URL}/my-learning/courses`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      
-      // Add this after fetching data in fetchMyLearningCourses
-if (response.ok) {
-  const data = await response.json();
-  console.log('Learning data received:', data);
-  
-  // ✅ Remove duplicate categories based on course_category
-  const uniqueData = data.data.reduce((acc, current) => {
-    const exists = acc.find(item => item.course_category === current.course_category);
-    if (!exists) {
-      acc.push(current);
-    }
-    return acc;
-  }, []);
-  
-  console.log('Unique categories:', uniqueData.map(c => c.course_category));
-  setLearningData(uniqueData);
-  
-  if (uniqueData.length > 0) {
-    setSelectedCategory(uniqueData[0]);
-  }
-} else {
-        console.error('Failed to fetch learning courses');
-        setLearningData([]);
+  try {
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${API_BASE_URL}/my-learning/courses`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
       }
-    } catch (error) {
-      console.error('Error fetching learning courses:', error);
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      console.log('Learning data received:', data);
+      
+      // Remove duplicate categories
+      const uniqueData = data.data.reduce((acc, current) => {
+        const exists = acc.find(item => item.course_category === current.course_category);
+        if (!exists) {
+          acc.push(current);
+        }
+        return acc;
+      }, []);
+      
+      console.log('Unique categories:', uniqueData.map(c => c.course_category));
+      
+      // Log materials count for each category
+      uniqueData.forEach(cat => {
+        console.log(`📚 ${cat.category_name}: ${cat.materials?.videos?.length || 0} videos, ${cat.materials?.documents?.length || 0} documents`);
+      });
+      
+      setLearningData(uniqueData);
+      
+      // ✅ FIX: Select first category WITH materials
+      if (uniqueData.length > 0) {
+        const categoryWithMaterials = uniqueData.find(category => 
+          (category.materials?.videos?.length > 0) ||
+          (category.materials?.documents?.length > 0) ||
+          (category.materials?.meetings?.length > 0)
+        );
+        
+        const defaultCategory = categoryWithMaterials || uniqueData[0];
+        
+        console.log('🎯 Default selected:', defaultCategory.category_name);
+        console.log('   Videos:', defaultCategory.materials?.videos?.length);
+        console.log('   Documents:', defaultCategory.materials?.documents?.length);
+        
+        setSelectedCategory(defaultCategory);
+      }
+    } else {
+      console.error('Failed to fetch learning courses');
       setLearningData([]);
-    } finally {
-      setLoading(false);
     }
-  };
+  } catch (error) {
+    console.error('Error fetching learning courses:', error);
+    setLearningData([]);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const fetchLearningProgress = async () => {
     try {
