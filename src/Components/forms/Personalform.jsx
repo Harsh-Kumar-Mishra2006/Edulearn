@@ -4,7 +4,6 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, User, Mail, Phone, Calendar } from 'lucide-react';
 import axios from 'axios';
 import CourseSummary from '../Student/course/courseSummary';
-import Cookies from 'js-cookie';
 
 const PersonalForm = () => {
   const navigate = useNavigate();
@@ -23,6 +22,7 @@ const PersonalForm = () => {
   const [loading, setLoading] = useState(false);
   const [fetchingProfile, setFetchingProfile] = useState(true);
   const [autoFilled, setAutoFilled] = useState(false);
+  const [error, setError] = useState('');
 
   // Fetch student profile on component mount
   useEffect(() => {
@@ -30,157 +30,171 @@ const PersonalForm = () => {
   }, []);
 
   const fetchStudentProfile = async () => {
-  try {
-    console.log('=== AUTO-FILL DEBUGGING ===');
-    
-    // 1. Look for userData FIRST (this has the current student)
-    const userDataString = localStorage.getItem('userData');
-    
-    if (userDataString) {
-      try {
-        const user = JSON.parse(userDataString);
-        console.log('✅ Found current user in "userData":', user);
-        
-        if (user.role === 'student') {
-          console.log('✅ User is a student - auto-filling form');
-          
-          // Calculate age if DOB exists
-          let ageValue = user.profile?.age || '';
-          if (!ageValue && user.profile?.dob) {
-            const today = new Date();
-            const birthDate = new Date(user.profile.dob);
-            let calculatedAge = today.getFullYear() - birthDate.getFullYear();
-            const monthDiff = today.getMonth() - birthDate.getMonth();
-            if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-              calculatedAge--;
-            }
-            ageValue = calculatedAge.toString();
-          }
-          
-          // Format date for input
-          let dobValue = user.profile?.dob || '';
-          if (dobValue) {
-            const date = new Date(dobValue);
-            if (!isNaN(date.getTime())) {
-              dobValue = date.toISOString().split('T')[0];
-            }
-          }
-          
-          // Create new form data
-          const newFormData = {
-            name: user.name || '',
-            email: user.email || '',
-            phone: user.phone || '',
-            age: ageValue,
-            gender: user.profile?.gender || '',
-            dob: dobValue
-          };
-          
-          console.log('📝 Form data to set:', newFormData);
-          
-          // Update form
-          setFormData(newFormData);
-          setAutoFilled(true);
-          
-          // Show success message
-          setTimeout(() => {
-            const filledFields = Object.values(newFormData).filter(v => v && v.toString().trim() !== '').length;
-            if (filledFields >= 3) {
-              alert(`✅ ${filledFields} fields auto-filled from your profile!`);
-            }
-          }, 500);
-          
-          setFetchingProfile(false);
-          return;
-        } else {
-          console.log('⚠️ User in "userData" is not a student, role:', user.role);
-        }
-      } catch (parseError) {
-        console.log('❌ Error parsing userData:', parseError);
-      }
-    }
-    
-    // 2. If no userData, check token for user info
-    const token = localStorage.getItem('token');
-    if (token) {
-      console.log('🔑 Token found, checking payload...');
+    try {
+      console.log('=== FETCHING STUDENT PROFILE ===');
       
+      // Get token from localStorage
+      const token = localStorage.getItem('token');
+      
+      if (!token) {
+        console.log('⚠️ No token found, user might not be logged in');
+        setFetchingProfile(false);
+        return;
+      }
+      
+      // Try to get user data from token payload first
       try {
         const parts = token.split('.');
         if (parts.length === 3) {
           const payload = JSON.parse(atob(parts[1]));
           console.log('Token payload:', payload);
           
-          if (payload.role === 'student') {
-            console.log('✅ Token belongs to a student, using token data');
+          if (payload.email) {
+            // Fetch full profile from backend using the email
+            const response = await axios.get(
+              `https://edulearnbackend-ffiv.onrender.com/api/auth/student-details/${payload.email}`,
+              {
+                headers: {
+                  'Authorization': `Bearer ${token}`
+                }
+              }
+            );
             
-            setFormData(prev => ({
-              ...prev,
-              name: payload.name || '',
-              email: payload.email || ''
-            }));
-            
-            setAutoFilled(true);
+            if (response.data.success && response.data.data) {
+              const userData = response.data.data;
+              console.log('✅ Student data fetched:', userData);
+              
+              // Calculate age if DOB exists
+              let ageValue = userData.age || '';
+              if (!ageValue && userData.dob) {
+                const today = new Date();
+                const birthDate = new Date(userData.dob);
+                let calculatedAge = today.getFullYear() - birthDate.getFullYear();
+                const monthDiff = today.getMonth() - birthDate.getMonth();
+                if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+                  calculatedAge--;
+                }
+                ageValue = calculatedAge.toString();
+              }
+              
+              // Format date for input
+              let dobValue = userData.dob || '';
+              if (dobValue && dobValue !== 'Invalid Date') {
+                const date = new Date(dobValue);
+                if (!isNaN(date.getTime())) {
+                  dobValue = date.toISOString().split('T')[0];
+                }
+              }
+              
+              setFormData({
+                name: userData.name || '',
+                email: userData.email || '',
+                phone: userData.phone || '',
+                age: ageValue,
+                gender: userData.gender || '',
+                dob: dobValue
+              });
+              
+              setAutoFilled(true);
+              console.log('📝 Form auto-filled with:', formData);
+            }
           }
         }
-      } catch (e) {
-        console.log('Cannot decode token:', e);
+      } catch (decodeError) {
+        console.log('Token decode error:', decodeError);
       }
+      
+    } catch (error) {
+      console.error('❌ Error fetching profile:', error);
+    } finally {
+      setFetchingProfile(false);
     }
-    
-    // 3. Clean up old "user" key if it exists (optional)
-    const oldUser = localStorage.getItem('user');
-    if (oldUser) {
-      try {
-        const oldUserData = JSON.parse(oldUser);
-        if (oldUserData.role !== 'student') {
-          console.log('🧹 Found old non-student user data, removing...');
-          localStorage.removeItem('user');
-        }
-      } catch (e) {
-        // Ignore parse errors
-      }
-    }
-    
-  } catch (error) {
-    console.log('❌ Error in fetchStudentProfile:', error);
-  } finally {
-    setFetchingProfile(false);
-  }
-};
+  };
 
   const handleChange = (e) => {
     setFormData({
       ...formData,
       [e.target.name]: e.target.value
     });
+    // Clear error when user starts typing
+    if (error) setError('');
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
+    setError('');
+
+    // Validate phone number
+    if (!formData.phone || formData.phone.trim() === '') {
+      setError('Phone number is required');
+      setLoading(false);
+      return;
+    }
 
     try {
+      const token = localStorage.getItem('token');
+      
+      if (!token) {
+        setError('Please login to continue');
+        setLoading(false);
+        return;
+      }
+
+      console.log('📤 Submitting personal info:', formData);
+
+      // ✅ FIXED: Use the correct API endpoint
       const response = await axios.post(
-        'https://edulearnbackend-ffiv.onrender.com/api/personal/save', 
-        formData
+        'https://edulearnbackend-ffiv.onrender.com/api/personal/save-personal-info',
+        {
+          name: formData.name,
+          age: parseInt(formData.age),
+          gender: formData.gender,
+          email: formData.email,
+          phone: String(formData.phone), // Ensure phone is string
+          dob: formData.dob
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
       );
       
+      console.log('✅ Server response:', response.data);
+      
       if (response.data.success) {
-        // Save email to cookie for future forms
-        document.cookie = `student_email=${formData.email}; path=/; max-age=86400`;
-        
         alert('Personal information saved successfully!');
+        
+        // Store email for next forms
+        localStorage.setItem('studentEmail', formData.email);
+        
+        // Navigate to next form
         navigate('/background-form', { 
           state: { 
             course: course,
-            email: formData.email 
+            email: formData.email,
+            personalInfo: formData
           } 
         });
+      } else {
+        setError(response.data.message || 'Error saving information');
       }
+      
     } catch (error) {
-      console.error('Error saving personal info:', error);
-      alert('Error saving personal information. Please try again.');
+      console.error('❌ Error saving personal info:', error);
+      
+      if (error.response) {
+        // Server responded with error
+        console.error('Server error:', error.response.data);
+        setError(error.response.data.error || error.response.data.message || 'Failed to save personal information');
+      } else if (error.request) {
+        // Request made but no response
+        setError('Network error. Please check your connection.');
+      } else {
+        setError('Error: ' + error.message);
+      }
     } finally {
       setLoading(false);
     }
@@ -196,110 +210,14 @@ const PersonalForm = () => {
       dob: ''
     });
     setAutoFilled(false);
+    setError('');
     alert('Form cleared.');
   };
 
-  // Enhanced debug function
-  const debugLocalStorage = () => {
-    console.log('=== COMPLETE LOCALSTORAGE DUMP ===');
-    console.log('Total items:', localStorage.length);
-    
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      const value = localStorage.getItem(key);
-      
-      console.log(`\n=== ${key} ===`);
-      
-      // Try to parse if it looks like JSON
-      if (value && (value.startsWith('{') || value.startsWith('['))) {
-        try {
-          const parsed = JSON.parse(value);
-          console.log('Parsed:', parsed);
-        } catch (e) {
-          console.log('Not JSON, raw value (first 200 chars):', value.substring(0, 200));
-        }
-      } else {
-        console.log('Value (first 200 chars):', value?.substring(0, 200));
-      }
-    }
-    
-    // Check cookies too
-    console.log('\n=== COOKIES ===');
-    console.log('All cookies:', document.cookie);
-    
-    // Check if user is logged in by any indicator
-    console.log('\n=== LOGIN STATUS CHECK ===');
-    const hasToken = localStorage.getItem('token') || Cookies.get('token');
-    console.log('Has token:', !!hasToken);
-    
-    if (hasToken) {
-      console.log('Token exists, trying to decode...');
-      const token = localStorage.getItem('token') || Cookies.get('token');
-      try {
-        const parts = token.split('.');
-        if (parts.length === 3) {
-          const payload = JSON.parse(atob(parts[1]));
-          console.log('Token user info:', {
-            name: payload.name,
-            email: payload.email,
-            role: payload.role,
-            userId: payload.userId
-          });
-        }
-      } catch (e) {
-        console.log('Token decode error:', e.message);
-      }
-    }
-  };
-
-  // Quick check for common localStorage patterns
-  const quickCheck = () => {
-    console.log('=== QUICK CHECK ===');
-    
-    // Check common patterns
-    const checks = [
-      'token',
-      'user',
-      'auth',
-      'login',
-      'currentUser',
-      'userInfo',
-      'profile',
-      'auth_token',
-      'access_token'
-    ];
-    
-    checks.forEach(key => {
-      const value = localStorage.getItem(key);
-      if (value) {
-        console.log(`Found "${key}":`, value.substring(0, 100));
-        
-        // Try to parse if JSON
-        if (value.startsWith('{') || value.startsWith('[')) {
-          try {
-            const parsed = JSON.parse(value);
-            console.log(`Parsed "${key}":`, parsed);
-            
-            // If this looks like user data, use it
-            if (parsed.name || parsed.email) {
-              console.log(`✅ "${key}" contains user data!`);
-              if (parsed.role === 'student') {
-                alert(`Found student data in "${key}"! Auto-filling...`);
-                setFormData(prev => ({
-                  ...prev,
-                  name: parsed.name || '',
-                  email: parsed.email || '',
-                  phone: parsed.phone || ''
-                }));
-                setAutoFilled(true);
-              }
-            }
-          } catch (e) {
-            // Not JSON
-          }
-        }
-      }
-    });
+  // Manual retry function
+  const retryAutoFill = () => {
+    setFetchingProfile(true);
+    fetchStudentProfile();
   };
 
   return (
@@ -334,49 +252,26 @@ const PersonalForm = () => {
           <p className="text-center text-gray-600">Step 1 of 3: Tell us about yourself</p>
         </div>
 
-        {/* Debug Section */}
-        <div className="mb-4 p-4 bg-gray-50 rounded-lg">
-          <h3 className="font-medium text-gray-700 mb-2">Debug Tools</h3>
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={debugLocalStorage}
-              className="px-3 py-1 bg-gray-200 text-gray-700 text-sm rounded hover:bg-gray-300"
-            >
-              Full LocalStorage Dump
-            </button>
-            <button
-              onClick={quickCheck}
-              className="px-3 py-1 bg-blue-100 text-blue-700 text-sm rounded hover:bg-blue-200"
-            >
-              Quick Check
-            </button>
-            <button
-              onClick={fetchStudentProfile}
-              className="px-3 py-1 bg-green-100 text-green-700 text-sm rounded hover:bg-green-200"
-            >
-              Retry Auto-fill
-            </button>
-            <button
-              onClick={clearForm}
-              className="px-3 py-1 bg-red-100 text-red-700 text-sm rounded hover:bg-red-200"
-            >
-              Clear Form
-            </button>
+        {/* Error Display */}
+        {error && (
+          <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
+            <p className="font-medium">Error:</p>
+            <p>{error}</p>
           </div>
-        </div>
+        )}
 
         {/* Auto-fill Notification */}
-        {autoFilled && (
-          <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+        {autoFilled && !fetchingProfile && (
+          <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
             <div className="flex items-center">
-              <div className="bg-blue-100 p-2 rounded-full mr-3">
-                <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              <div className="bg-green-100 p-2 rounded-full mr-3">
+                <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
               </div>
               <div>
-                <p className="text-blue-800 font-medium">Information auto-filled from your profile</p>
-                <p className="text-blue-600 text-sm">Please review and complete any missing fields</p>
+                <p className="text-green-800 font-medium">Information auto-filled from your profile!</p>
+                <p className="text-green-600 text-sm">Please review and complete any missing fields</p>
               </div>
             </div>
           </div>
@@ -388,6 +283,13 @@ const PersonalForm = () => {
             <div className="text-center py-12">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
               <p className="mt-4 text-gray-600">Loading your profile information...</p>
+              <button
+                type="button"
+                onClick={retryAutoFill}
+                className="mt-4 text-blue-600 hover:text-blue-700 text-sm"
+              >
+                Retry
+              </button>
             </div>
           ) : (
             <div className="space-y-6">
@@ -459,9 +361,13 @@ const PersonalForm = () => {
                   value={formData.email}
                   onChange={handleChange}
                   required
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors bg-gray-50"
                   placeholder="your.email@example.com"
+                  readOnly={autoFilled}
                 />
+                {autoFilled && (
+                  <p className="text-xs text-gray-500 mt-1">Email is linked to your account and cannot be changed</p>
+                )}
               </div>
 
               {/* Phone and DOB */}
@@ -478,7 +384,7 @@ const PersonalForm = () => {
                     onChange={handleChange}
                     required
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                    placeholder="+1 (555) 123-4567"
+                    placeholder="9876543210"
                   />
                 </div>
                 <div>
@@ -498,19 +404,19 @@ const PersonalForm = () => {
               </div>
 
               {/* Info Note */}
-              <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                <p className="text-sm text-gray-600">
-                  <span className="font-medium">Note:</span> {autoFilled 
-                    ? 'Your profile information has been pre-filled. Please verify all details are correct before proceeding.' 
-                    : 'Please fill in all required fields. If you are a registered student, your information may auto-fill.'}
+              <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                <p className="text-sm text-blue-800">
+                  <span className="font-medium">ℹ️ Note:</span> {autoFilled 
+                    ? 'Your profile information has been pre-filled from your account. Please verify all details are correct before proceeding.' 
+                    : 'Please fill in all required fields accurately. This information will be used for your certificate.'}
                 </p>
               </div>
 
             </div>
           )}
 
-          {/* Submit Button */}
-          <div className="mt-8">
+          {/* Action Buttons */}
+          <div className="mt-8 space-y-3">
             <button
               type="submit"
               disabled={loading || fetchingProfile}
@@ -520,6 +426,16 @@ const PersonalForm = () => {
                fetchingProfile ? 'Loading...' : 
                'Continue to Background Information'}
             </button>
+            
+            {autoFilled && !fetchingProfile && (
+              <button
+                type="button"
+                onClick={clearForm}
+                className="w-full bg-gray-200 text-gray-700 py-2 px-4 rounded-lg font-medium hover:bg-gray-300 transition-colors"
+              >
+                Clear Form & Enter Manually
+              </button>
+            )}
           </div>
         </form>
       </div>
