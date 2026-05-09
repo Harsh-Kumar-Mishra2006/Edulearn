@@ -33,58 +33,60 @@ const AdminDashboard = () => {
   const [teachersPerPage] = useState(6); // Show 6 teachers per page
   const navigate = useNavigate();
 
-  const fetchTeachers = async () => {
-    try {
-      setLoading(true);
-      const token = localStorage.getItem('token');
-      
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000);
-      
-      const response = await fetch('https://edulearnbackend-ffiv.onrender.com/api/admin/teachers', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        signal: controller.signal
-      });
+  // AdminDashboard.jsx - Update the fetchTeachers function
 
-      clearTimeout(timeoutId);
+const fetchTeachers = async () => {
+  try {
+    setLoading(true);
+    const token = localStorage.getItem('token');
+    
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    
+    // ✅ Add getAll=true parameter to fetch ALL teachers
+    const response = await fetch('https://edulearnbackend-ffiv.onrender.com/api/admin/teachers?getAll=true', {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      signal: controller.signal
+    });
+
+    clearTimeout(timeoutId);
+    
+    if (response.ok) {
+      const result = await response.json();
+      console.log('Teachers API Response:', result);
       
-      if (response.ok) {
-        const result = await response.json();
-        console.log('Teachers API Response:', result);
-        
-        // Handle different response structures
-        let teachersArray = [];
-        if (result.success && Array.isArray(result.data)) {
-          teachersArray = result.data;
-        } else if (Array.isArray(result.teachers)) {
-          teachersArray = result.teachers;
-        } else if (Array.isArray(result)) {
-          teachersArray = result;
-        } else if (result.data && Array.isArray(result.data.teachers)) {
-          teachersArray = result.data.teachers;
-        }
-        
-        console.log('Loaded teachers count:', teachersArray.length);
-        setTeachers(teachersArray);
-      } else {
-        console.error('Failed to fetch teachers:', response.status);
-        setTeachers([]);
+      // ✅ Handle the new response structure
+      let teachersArray = [];
+      if (result.success && Array.isArray(result.data)) {
+        teachersArray = result.data;
+      } else if (Array.isArray(result.teachers)) {
+        teachersArray = result.teachers;
+      } else if (Array.isArray(result)) {
+        teachersArray = result;
+      } else if (result.data && Array.isArray(result.data.teachers)) {
+        teachersArray = result.data.teachers;
       }
-    } catch (error) {
-      if (error.name === 'AbortError') {
-        console.error('Request timeout');
-      } else {
-        console.error('Error fetching teachers:', error);
-      }
+      
+      console.log('Loaded teachers count:', teachersArray.length);
+      setTeachers(teachersArray);
+    } else {
+      console.error('Failed to fetch teachers:', response.status);
       setTeachers([]);
-    } finally {
-      setLoading(false);
     }
-  };
-
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      console.error('Request timeout');
+    } else {
+      console.error('Error fetching teachers:', error);
+    }
+    setTeachers([]);
+  } finally {
+    setLoading(false);
+  }
+};
   useEffect(() => {
     fetchTeachers();
   }, []);
