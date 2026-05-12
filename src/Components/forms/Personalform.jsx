@@ -30,86 +30,83 @@ const PersonalForm = () => {
   }, []);
 
   const fetchStudentProfile = async () => {
-    try {
-      console.log('=== FETCHING STUDENT PROFILE ===');
+  try {
+    console.log('=== FETCHING STUDENT PROFILE ===');
+    
+    const token = localStorage.getItem('token');
+    if (!token) {
+      console.log('⚠️ No token found, user might not be logged in');
+      setFetchingProfile(false);
+      return;
+    }
+    
+    // Get email from token payload
+    const parts = token.split('.');
+    if (parts.length === 3) {
+      const payload = JSON.parse(atob(parts[1]));
+      console.log('Token payload:', payload);
       
-      // Get token from localStorage
-      const token = localStorage.getItem('token');
-      
-      if (!token) {
-        console.log('⚠️ No token found, user might not be logged in');
-        setFetchingProfile(false);
-        return;
-      }
-      
-      // Try to get user data from token payload first
-      try {
-        const parts = token.split('.');
-        if (parts.length === 3) {
-          const payload = JSON.parse(atob(parts[1]));
-          console.log('Token payload:', payload);
-          
-          if (payload.email) {
-            // Fetch full profile from backend using the email
-            const response = await axios.get(
-              `https://edulearnbackend-ffiv.onrender.com/api/auth/student-details/${payload.email}`,
-              {
-                headers: {
-                  'Authorization': `Bearer ${token}`
-                }
-              }
-            );
-            
-            if (response.data.success && response.data.data) {
-              const userData = response.data.data;
-              console.log('✅ Student data fetched:', userData);
-              
-              // Calculate age if DOB exists
-              let ageValue = userData.age || '';
-              if (!ageValue && userData.dob) {
-                const today = new Date();
-                const birthDate = new Date(userData.dob);
-                let calculatedAge = today.getFullYear() - birthDate.getFullYear();
-                const monthDiff = today.getMonth() - birthDate.getMonth();
-                if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-                  calculatedAge--;
-                }
-                ageValue = calculatedAge.toString();
-              }
-              
-              // Format date for input
-              let dobValue = userData.dob || '';
-              if (dobValue && dobValue !== 'Invalid Date') {
-                const date = new Date(dobValue);
-                if (!isNaN(date.getTime())) {
-                  dobValue = date.toISOString().split('T')[0];
-                }
-              }
-              
-              setFormData({
-                name: userData.name || '',
-                email: userData.email || '',
-                phone: userData.phone || '',
-                age: ageValue,
-                gender: userData.gender || '',
-                dob: dobValue
-              });
-              
-              setAutoFilled(true);
-              console.log('📝 Form auto-filled with:', formData);
+      if (payload.email) {
+        // ✅ FIXED: Use the existing personal-info endpoint
+        const response = await axios.get(
+          `https://edulearnbackend-ffiv.onrender.com/api/personal/personal-info/${payload.email}`,
+          {
+            headers: {
+              'Authorization': `Bearer ${token}`
             }
           }
+        );
+        
+        if (response.data.success && response.data.data) {
+          const userData = response.data.data;
+          console.log('✅ Student data fetched:', userData);
+          
+          // Calculate age if DOB exists
+          let ageValue = userData.age || '';
+          if (!ageValue && userData.dob) {
+            const today = new Date();
+            const birthDate = new Date(userData.dob);
+            let calculatedAge = today.getFullYear() - birthDate.getFullYear();
+            const monthDiff = today.getMonth() - birthDate.getMonth();
+            if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+              calculatedAge--;
+            }
+            ageValue = calculatedAge.toString();
+          }
+          
+          // Format date for input
+          let dobValue = userData.dob || '';
+          if (dobValue && dobValue !== 'Invalid Date') {
+            const date = new Date(dobValue);
+            if (!isNaN(date.getTime())) {
+              dobValue = date.toISOString().split('T')[0];
+            }
+          }
+          
+          setFormData({
+            name: userData.name || '',
+            email: userData.email || '',
+            phone: userData.phone || '',
+            age: ageValue,
+            gender: userData.gender || '',
+            dob: dobValue
+          });
+          
+          setAutoFilled(true);
+          console.log('📝 Form auto-filled with profile data');
         }
-      } catch (decodeError) {
-        console.log('Token decode error:', decodeError);
       }
-      
-    } catch (error) {
-      console.error('❌ Error fetching profile:', error);
-    } finally {
-      setFetchingProfile(false);
     }
-  };
+  } catch (error) {
+    console.error('❌ Error fetching profile:', error);
+    // If 404, that's fine – user has no existing profile
+    if (error.response?.status === 404) {
+      console.log('No existing profile found, user can fill manually');
+    }
+  } finally {
+    setFetchingProfile(false);
+  }
+};
 
   const handleChange = (e) => {
     setFormData({
