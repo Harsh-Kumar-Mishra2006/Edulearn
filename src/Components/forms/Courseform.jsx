@@ -1,12 +1,14 @@
-// components/forms/CourseForm.jsx
 import React, { useState, useEffect } from 'react';
-import { useNavigate,useLocation } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, Code, Target, Clock, Zap, Book, Languages } from 'lucide-react';
 import axios from 'axios';
 import CourseSummary from '../Student/course/courseSummary';
 
 const CourseForm = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { course } = location.state || {};
+  
   const [formData, setFormData] = useState({
     currentskills: '',
     fieldofstudy: '',
@@ -17,83 +19,198 @@ const CourseForm = () => {
   });
   const [loading, setLoading] = useState(false);
   const [studentEmail, setStudentEmail] = useState('');
-
-  const location = useLocation();
-const { course } = location.state || {};
-
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    // Get email from cookie
-    const cookies = document.cookie.split(';');
-    for (let cookie of cookies) {
-      const [name, value] = cookie.trim().split('=');
-      if (name === 'student_email') {
-        setStudentEmail(value);
-        break;
+    // ✅ FIXED: Get email from MULTIPLE sources
+    const getEmail = () => {
+      // Priority 1: Check location state
+      if (location.state?.email) {
+        console.log('✅ Email from location state:', location.state.email);
+        setStudentEmail(location.state.email);
+        return;
+      }
+      
+      // Priority 2: Check localStorage (where PersonalForm stores it)
+      const localStorageEmail = localStorage.getItem('studentEmail');
+      if (localStorageEmail) {
+        console.log('✅ Email from localStorage:', localStorageEmail);
+        setStudentEmail(localStorageEmail);
+        return;
+      }
+      
+      // Priority 3: Check sessionStorage as backup
+      const sessionEmail = sessionStorage.getItem('tempStudentEmail');
+      if (sessionEmail) {
+        console.log('✅ Email from sessionStorage:', sessionEmail);
+        setStudentEmail(sessionEmail);
+        return;
+      }
+      
+      // Priority 4: Try to get from token payload
+      const token = localStorage.getItem('token');
+      if (token) {
+        try {
+          const parts = token.split('.');
+          if (parts.length === 3) {
+            const payload = JSON.parse(atob(parts[1]));
+            if (payload.email) {
+              console.log('✅ Email from token payload:', payload.email);
+              setStudentEmail(payload.email);
+              return;
+            }
+          }
+        } catch (err) {
+          console.error('Error decoding token:', err);
+        }
+      }
+      
+      // No email found
+      console.error('❌ No email found in any source!');
+      setError('Please complete previous steps first.');
+      setTimeout(() => {
+        navigate('/personal-form', { state: { course } });
+      }, 2000);
+    };
+    
+    getEmail();
+    
+    // Optional: Load previously saved course data if exists
+    const savedCourseData = localStorage.getItem('courseInfo');
+    if (savedCourseData) {
+      try {
+        const parsedData = JSON.parse(savedCourseData);
+        console.log('📦 Loading saved course data:', parsedData);
+        setFormData(prev => ({
+          ...prev,
+          ...parsedData
+        }));
+      } catch (err) {
+        console.error('Error parsing saved course data:', err);
       }
     }
-  }, []);
+  }, [location.state, navigate, course]);
 
   const handleChange = (e) => {
     setFormData({
       ...formData,
       [e.target.name]: e.target.value
     });
+    if (error) setError('');
   };
 
   const handleSubmit = async (e) => {
-  e.preventDefault();
-  
-  if (!studentEmail) {
-    alert('Please complete previous steps first.');
-    navigate('/personal-form');
-    return;
-  }
-
-  setLoading(true);
-
-  try {
-    // ✅ Ensure optional fields are sent as empty strings
-    const dataToSend = {
-      email: studentEmail,
-      currentskills: formData.currentskills,
-      fieldofstudy: formData.fieldofstudy,
-      language: formData.language,
-      goals: formData.goals || '',  // Send empty string if not selected
-      background: formData.background || '',
-      timecommitment: formData.timecommitment || ''
-    };
+    e.preventDefault();
     
-    console.log('🟡 Frontend - Sending course data:', dataToSend);
+    // Double-check email is available
+    let currentStudentEmail = studentEmail;
     
-    const response = await axios.post('https://edulearnbackend-ffiv.onrender.com/api/course/save', dataToSend);
-    
-    console.log('🟢 Frontend - Course save response:', response.data);
-    
-    if (response.data.success) {
-      alert('Course details saved successfully!');
-      navigate('/payment', { 
-        state: { 
-          course: course,
-          email: studentEmail 
-        } 
-      });
+    // Try localStorage again if state is empty
+    if (!currentStudentEmail) {
+      currentStudentEmail = localStorage.getItem('studentEmail');
     }
-  } catch (error) {
-    console.error('🔴 Frontend - Error saving course details:', error);
-    console.error('🔴 Frontend - Error response:', error.response?.data);
     
-    if (error.response?.data?.error) {
-      alert('Error: ' + error.response.data.error);
-    } else if (error.request) {
-      alert('Network error: Could not connect to server.');
-    } else {
-      alert('Error: ' + error.message);
+    // Try sessionStorage
+    if (!currentStudentEmail) {
+      currentStudentEmail = sessionStorage.getItem('tempStudentEmail');
     }
-  } finally {
-    setLoading(false);
-  }
-};
+    
+    console.log('🟡 Submitting course data with email:', currentStudentEmail);
+    console.log('🟡 Form data:', formData);
+
+    if (!currentStudentEmail) {
+      setError('Please complete previous steps first.');
+      setTimeout(() => {
+        navigate('/personal-form', { state: { course } });
+      }, 2000);
+      return;
+    }
+
+    // Validate required fields
+    if (!formData.currentskills) {
+      setError('Please select your current skills');
+      return;
+    }
+    
+    if (!formData.fieldofstudy) {
+      setError('Please select your field of study');
+      return;
+    }
+    
+    if (!formData.language) {
+      setError('Please select your preferred language');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      // Prepare data to send
+      const dataToSend = {
+        email: currentStudentEmail,
+        currentskills: formData.currentskills,
+        fieldofstudy: formData.fieldofstudy,
+        language: formData.language,
+        goals: formData.goals || '',  // Optional fields
+        background: formData.background || '',
+        timecommitment: formData.timecommitment || ''
+      };
+      
+      console.log('📤 Sending course data to backend:', dataToSend);
+      
+      const token = localStorage.getItem('token');
+      const response = await axios.post(
+        'https://edulearnbackend-ffiv.onrender.com/api/course/save', 
+        dataToSend,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      
+      console.log('✅ Backend response:', response.data);
+      
+      if (response.data.success) {
+        alert('Course details saved successfully!');
+        
+        // Save to localStorage for backup
+        localStorage.setItem('courseInfo', JSON.stringify(dataToSend));
+        localStorage.setItem('courseCompleted', 'true');
+        
+        navigate('/payment', { 
+          state: { 
+            course: course,
+            email: currentStudentEmail,
+            courseData: formData
+          } 
+        });
+      } else {
+        setError(response.data.error || 'Failed to save course details');
+      }
+    } catch (error) {
+      console.error('❌ Error saving course details:', error);
+      
+      if (error.response?.data?.error) {
+        setError(error.response.data.error);
+        // If error says previous info missing, redirect back
+        if (error.response.data.error.includes('personal') || 
+            error.response.data.error.includes('background')) {
+          setTimeout(() => {
+            navigate('/personal-form', { state: { course } });
+          }, 2000);
+        }
+      } else if (error.request) {
+        setError('Network error: Could not connect to server.');
+      } else {
+        setError('Error: ' + error.message);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Options for dropdowns
   const currentSkillsOptions = [
@@ -162,7 +279,7 @@ const { course } = location.state || {};
         <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">
           <div className="flex items-center justify-between mb-6">
             <button
-              onClick={() => navigate('/background-form')}
+              onClick={() => navigate('/background-form', { state: { course } })}
               className="flex items-center text-gray-600 hover:text-gray-900 transition-colors"
             >
               <ArrowLeft className="h-5 w-5 mr-2" />
@@ -175,15 +292,30 @@ const { course } = location.state || {};
           {/* Progress */}
           <div className="flex items-center justify-center mb-2">
             <div className="flex items-center">
-              <div className="w-8 h-8 bg-purple-600 text-white rounded-full flex items-center justify-center text-sm font-bold">1</div>
+              <div className="w-8 h-8 bg-purple-600 text-white rounded-full flex items-center justify-center text-sm font-bold">✓</div>
               <div className="w-16 h-1 bg-purple-600"></div>
-              <div className="w-8 h-8 bg-purple-600 text-white rounded-full flex items-center justify-center text-sm font-bold">2</div>
+              <div className="w-8 h-8 bg-purple-600 text-white rounded-full flex items-center justify-center text-sm font-bold">✓</div>
               <div className="w-16 h-1 bg-purple-600"></div>
               <div className="w-8 h-8 bg-purple-600 text-white rounded-full flex items-center justify-center text-sm font-bold">3</div>
             </div>
           </div>
           <p className="text-center text-gray-600">Step 3 of 3: Tell us about your learning preferences</p>
         </div>
+
+        {/* Error Display */}
+        {error && (
+          <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
+            <p className="font-medium">Error:</p>
+            <p>{error}</p>
+          </div>
+        )}
+
+        {/* Email Display (for debugging - remove in production) */}
+        {studentEmail && (
+          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-blue-700 text-sm">
+            <strong>Student Email:</strong> {studentEmail}
+          </div>
+        )}
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-lg p-8">
@@ -249,66 +381,68 @@ const { course } = location.state || {};
               </select>
             </div>
 
-            <div className='border-2 border-black p-2'>
-              <span className="font-bold text-blue-500  ">*Optional</span>
-            {/* Learning Goals */}
-            <div>
-              <label className="flex items-center text-sm font-medium text-gray-700 mb-2">
-                <Target className="h-4 w-4 mr-2" />
-                Learning Goals *
-              </label>
-              <select
-                name="goals"
-                value={formData.goals}
-                onChange={handleChange}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors"
-              >
-                <option value="">Select your learning goals</option>
-                {goalsOptions.map(goal => (
-                  <option key={goal} value={goal}>{goal}</option>
-                ))}
-              </select>
-            </div>
+            <div className='border-2 border-gray-200 rounded-lg p-4'>
+              <div className="mb-2">
+                <span className="text-sm text-blue-600 font-medium">*Optional Fields</span>
+              </div>
+              
+              {/* Learning Goals */}
+              <div className="mb-4">
+                <label className="flex items-center text-sm font-medium text-gray-700 mb-2">
+                  <Target className="h-4 w-4 mr-2" />
+                  Learning Goals
+                </label>
+                <select
+                  name="goals"
+                  value={formData.goals}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors"
+                >
+                  <option value="">Select your learning goals</option>
+                  {goalsOptions.map(goal => (
+                    <option key={goal} value={goal}>{goal}</option>
+                  ))}
+                </select>
+              </div>
 
-            {/* Background */}
-            <div>
-              <label className="flex items-center text-sm font-medium text-gray-700 mb-2">
-                <Code className="h-4 w-4 mr-2" />
-                Current Background *
-              </label>
-              <select
-                name="background"
-                value={formData.background}
-                onChange={handleChange}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors"
-              >
-                <option value="">Select your current background</option>
-                {backgroundOptions.map(bg => (
-                  <option key={bg} value={bg}>{bg}</option>
-                ))}
-              </select>
-            </div>
+              {/* Background */}
+              <div className="mb-4">
+                <label className="flex items-center text-sm font-medium text-gray-700 mb-2">
+                  <Code className="h-4 w-4 mr-2" />
+                  Current Background
+                </label>
+                <select
+                  name="background"
+                  value={formData.background}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors"
+                >
+                  <option value="">Select your current background</option>
+                  {backgroundOptions.map(bg => (
+                    <option key={bg} value={bg}>{bg}</option>
+                  ))}
+                </select>
+              </div>
 
-
-            {/* Time Commitment */}
-            <div>
-              <label className="flex items-center text-sm font-medium text-gray-700 mb-2">
-                <Clock className="h-4 w-4 mr-2" />
-                Time Commitment *
-              </label>
-              <select
-                name="timecommitment"
-                value={formData.timecommitment}
-                onChange={handleChange}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors"
-              >
-                <option value="">Select your available time</option>
-                {timeCommitmentOptions.map(time => (
-                  <option key={time} value={time}>{time}</option>
-                ))}
-              </select>
+              {/* Time Commitment */}
+              <div>
+                <label className="flex items-center text-sm font-medium text-gray-700 mb-2">
+                  <Clock className="h-4 w-4 mr-2" />
+                  Time Commitment
+                </label>
+                <select
+                  name="timecommitment"
+                  value={formData.timecommitment}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors"
+                >
+                  <option value="">Select your available time</option>
+                  {timeCommitmentOptions.map(time => (
+                    <option key={time} value={time}>{time}</option>
+                  ))}
+                </select>
+              </div>
             </div>
-             </div>
 
           </div>
 

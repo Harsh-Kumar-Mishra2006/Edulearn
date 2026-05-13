@@ -204,7 +204,6 @@ const PaymentPage = () => {
 // In your PaymentPage.jsx, replace the handleConfirmEnrollment function with this:
 
 // In PaymentPage.jsx, simplify handleConfirmEnrollment:
-
 const handleConfirmEnrollment = async () => {
   if (!isUploaded || !selectedFile) {
     alert('Please upload payment screenshot first');
@@ -214,19 +213,44 @@ const handleConfirmEnrollment = async () => {
   setProcessing(true);
 
   try {
-    // Get student email
+    // ✅ FIXED: Get student email from MULTIPLE sources (not just cookies)
     let studentEmail = '';
-    const cookies = document.cookie.split(';');
-    for (let cookie of cookies) {
-      const [name, value] = cookie.trim().split('=');
-      if (name === 'student_email') {
-        studentEmail = value;
-        break;
-      }
-    }
-
-    if (!studentEmail && location.state?.email) {
+    
+    // Priority 1: Check location state
+    if (location.state?.email) {
       studentEmail = location.state.email;
+      console.log('✅ Email from location state:', studentEmail);
+    }
+    
+    // Priority 2: Check localStorage
+    if (!studentEmail) {
+      studentEmail = localStorage.getItem('studentEmail');
+      console.log('✅ Email from localStorage:', studentEmail);
+    }
+    
+    // Priority 3: Check sessionStorage
+    if (!studentEmail) {
+      studentEmail = sessionStorage.getItem('tempStudentEmail');
+      console.log('✅ Email from sessionStorage:', studentEmail);
+    }
+    
+    // Priority 4: Try to get from token payload
+    if (!studentEmail) {
+      const token = localStorage.getItem('token');
+      if (token) {
+        try {
+          const parts = token.split('.');
+          if (parts.length === 3) {
+            const payload = JSON.parse(atob(parts[1]));
+            if (payload.email) {
+              studentEmail = payload.email;
+              console.log('✅ Email from token payload:', studentEmail);
+            }
+          }
+        } catch (err) {
+          console.error('Error decoding token:', err);
+        }
+      }
     }
 
     if (!studentEmail) {
@@ -285,32 +309,31 @@ const handleConfirmEnrollment = async () => {
       alert(`Payment failed: ${response.data.error || 'Unknown error'}`);
     }
     
-  }  catch (error) {
-  console.error('🔴 Payment error:', error);
-  
-  let errorMessage = 'Payment processing failed';
-  let errorDetails = '';
-  
-  if (error.response) {
-    console.log('🔴 Full error response:', error.response.data);
-    console.log('🔴 Error status:', error.response.status);
-    console.log('🔴 Error headers:', error.response.headers);
+  } catch (error) {
+    console.error('🔴 Payment error:', error);
     
-    errorMessage = error.response.data.error || `Server error: ${error.response.status}`;
-    errorDetails = JSON.stringify(error.response.data, null, 2);
-  } else if (error.request) {
-    errorMessage = 'Cannot connect to server. Please check your internet connection.';
-  } else {
-    errorMessage = error.message;
+    let errorMessage = 'Payment processing failed';
+    let errorDetails = '';
+    
+    if (error.response) {
+      console.log('🔴 Full error response:', error.response.data);
+      console.log('🔴 Error status:', error.response.status);
+      console.log('🔴 Error headers:', error.response.headers);
+      
+      errorMessage = error.response.data.error || `Server error: ${error.response.status}`;
+      errorDetails = JSON.stringify(error.response.data, null, 2);
+    } else if (error.request) {
+      errorMessage = 'Cannot connect to server. Please check your internet connection.';
+    } else {
+      errorMessage = error.message;
+    }
+    
+    alert(`Error: ${errorMessage}\n\n${errorDetails ? 'Details:\n' + errorDetails : ''}`);
+    
+  } finally {
+    setProcessing(false);
   }
-  
-  alert(`Error: ${errorMessage}\n\n${errorDetails ? 'Details:\n' + errorDetails : ''}`);
-  
-} finally {
-  setProcessing(false);
-}
 };
-
   // Animation Components (keep the same as before)
   const UploadAnimation = () => (
     <div className="flex flex-col items-center justify-center py-8">

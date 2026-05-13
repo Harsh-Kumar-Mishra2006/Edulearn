@@ -188,7 +188,7 @@ const BackgroundForm = () => {
 
   const educationLevels = [
     'High School',
-    'Some College',
+    'College',
     'Associate Degree',
     'Bachelor\'s Degree',
     'Master\'s Degree',
