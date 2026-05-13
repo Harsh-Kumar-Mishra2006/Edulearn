@@ -35,19 +35,17 @@ const PersonalForm = () => {
     
     const token = localStorage.getItem('token');
     if (!token) {
-      console.log('⚠️ No token found, user might not be logged in');
+      console.log('⚠️ No token found');
       setFetchingProfile(false);
       return;
     }
     
-    // Get email from token payload
     const parts = token.split('.');
     if (parts.length === 3) {
       const payload = JSON.parse(atob(parts[1]));
       console.log('Token payload:', payload);
       
       if (payload.email) {
-        // ✅ FIXED: Use the existing personal-info endpoint
         const response = await axios.get(
           `https://edulearnbackend-ffiv.onrender.com/api/personal/personal-info/${payload.email}`,
           {
@@ -57,11 +55,25 @@ const PersonalForm = () => {
           }
         );
         
-        if (response.data.success && response.data.data) {
-          const userData = response.data.data;
-          console.log('✅ Student data fetched:', userData);
+        // 🔍 DEBUG: Log the ENTIRE response
+        console.log('📦 FULL API Response:', response);
+        console.log('📦 Response data:', response.data);
+        console.log('📦 Response data.data:', response.data?.data);
+        
+        // 🔍 Check what data actually exists
+        const userData = response.data?.data || response.data;
+        console.log('📦 Extracted userData:', userData);
+        
+        if (userData) {
+          // Log each field to see if they exist
+          console.log('Name field:', userData.name);
+          console.log('Email field:', userData.email);
+          console.log('Phone field:', userData.phone);
+          console.log('Age field:', userData.age);
+          console.log('Gender field:', userData.gender);
+          console.log('DOB field:', userData.dob);
           
-          // Calculate age if DOB exists
+          // Calculate age if needed
           let ageValue = userData.age || '';
           if (!ageValue && userData.dob) {
             const today = new Date();
@@ -72,36 +84,50 @@ const PersonalForm = () => {
               calculatedAge--;
             }
             ageValue = calculatedAge.toString();
+            console.log('Calculated age:', ageValue);
           }
           
-          // Format date for input
+          // Format DOB
           let dobValue = userData.dob || '';
           if (dobValue && dobValue !== 'Invalid Date') {
             const date = new Date(dobValue);
             if (!isNaN(date.getTime())) {
               dobValue = date.toISOString().split('T')[0];
+              console.log('Formatted DOB:', dobValue);
             }
           }
           
-          setFormData({
+          // Create new form data object
+          const newFormData = {
             name: userData.name || '',
-            email: userData.email || '',
+            email: userData.email || payload.email,
             phone: userData.phone || '',
             age: ageValue,
             gender: userData.gender || '',
             dob: dobValue
-          });
+          };
           
+          console.log('📝 Setting form data to:', newFormData);
+          
+          // 🔍 Force state update
+          setFormData(newFormData);
           setAutoFilled(true);
-          console.log('📝 Form auto-filled with profile data');
+          
+          // 🔍 Verify state was updated
+          setTimeout(() => {
+            console.log('Form data after state update:', formData);
+          }, 100);
+          
+        } else {
+          console.log('⚠️ No userData found in response');
         }
       }
     }
   } catch (error) {
     console.error('❌ Error fetching profile:', error);
-    // If 404, that's fine – user has no existing profile
-    if (error.response?.status === 404) {
-      console.log('No existing profile found, user can fill manually');
+    if (error.response) {
+      console.error('Error response data:', error.response.data);
+      console.error('Error response status:', error.response.status);
     }
   } finally {
     setFetchingProfile(false);
