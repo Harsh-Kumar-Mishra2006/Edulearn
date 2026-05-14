@@ -259,21 +259,22 @@ const StudentRecords = () => {
                         <div className="flex items-center space-x-2">
                           {/* View Screenshot Button */}
                           <button
-                            onClick={() => window.open(`http://localhost:3000/${payment.screenshot_path}`, '_blank')}
-                            className="flex items-center space-x-1 px-3 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors text-sm"
-                          >
+                          onClick={() => window.open(payment.screenshot_path, '_blank')}
+                          className="flex items-center space-x-1 px-3 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors text-sm">
                             <Eye className="h-4 w-4" />
                             <span>View SS</span>
                           </button>
                           
                           {/* Download Screenshot */}
                           <a
-                            href={`http://localhost:3000/${payment.screenshot_path}`}
-                            download
-                            className="flex items-center space-x-1 px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm"
+                          href={payment.screenshot_path}
+                          download
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center space-x-1 px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm"
                           >
-                            <Download className="h-4 w-4" />
-                            <span>Download</span>
+                          <Download className="h-4 w-4" />
+                          <span>Download</span>
                           </a>
                           
                           {/* Status Actions */}
