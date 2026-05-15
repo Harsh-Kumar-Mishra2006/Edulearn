@@ -255,47 +255,58 @@ const StudentRecords = () => {
                         </div>
                       </td>
                       
-                      <td className="px-6 py-4">
-                        <div className="flex items-center space-x-2">
-                          {/* View Screenshot Button */}
-                          <button
-                          onClick={() => window.open(payment.screenshot_path, '_blank')}
-                          className="flex items-center space-x-1 px-3 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors text-sm">
-                            <Eye className="h-4 w-4" />
-                            <span>View SS</span>
-                          </button>
-                          
-                          {/* Download Screenshot */}
-                          <a
-                          href={payment.screenshot_path}
-                          download
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center space-x-1 px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm"
-                          >
-                          <Download className="h-4 w-4" />
-                          <span>Download</span>
-                          </a>
-                          
-                          {/* Status Actions */}
-                          {payment.status === 'pending' && (
-                            <div className="flex space-x-1">
-                              <button
-                                onClick={() => handleStatusUpdate(payment._id, 'verified')}
-                                className="px-3 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors text-sm"
-                              >
-                                Verify
-                              </button>
-                              <button
-                                onClick={() => handleStatusUpdate(payment._id, 'rejected')}
-                                className="px-3 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors text-sm"
-                              >
-                                Reject
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      </td>
+                      // In the table actions section, update the View and Download buttons:
+
+<td className="px-6 py-4">
+  <div className="flex items-center space-x-2">
+    {/* View Screenshot Button */}
+    <button
+      onClick={() => {
+        if (payment.screenshot_path) {
+          window.open(payment.screenshot_path, '_blank');
+        } else {
+          alert('No screenshot available for this payment');
+        }
+      }}
+      className="flex items-center space-x-1 px-3 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors text-sm"
+    >
+      <Eye className="h-4 w-4" />
+      <span>View SS</span>
+    </button>
+    
+    {/* Download Screenshot */}
+    {payment.screenshot_path && (
+      <a
+        href={payment.screenshot_path}
+        download
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex items-center space-x-1 px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm"
+      >
+        <Download className="h-4 w-4" />
+        <span>Download</span>
+      </a>
+    )}
+    
+    {/* Status Actions */}
+    {payment.status === 'pending' && (
+      <div className="flex space-x-1">
+        <button
+          onClick={() => handleStatusUpdate(payment._id, 'verified')}
+          className="px-3 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors text-sm"
+        >
+          Verify
+        </button>
+        <button
+          onClick={() => handleStatusUpdate(payment._id, 'rejected')}
+          className="px-3 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors text-sm"
+        >
+          Reject
+        </button>
+      </div>
+    )}
+  </div>
+</td>
                     </tr>
                   ))}
                 </tbody>
