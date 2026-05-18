@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, BookOpen, Eye, EyeOff, User, GraduationCap, Shield, Check, Phone } from 'lucide-react';
+import { X, BookOpen, Eye, EyeOff, User, GraduationCap, Shield, Check, Phone, Calendar } from 'lucide-react';
 
 const Signup = ({ isOpen, onClose, onSwitchToLogin }) => {
   const [formData, setFormData] = useState({
@@ -9,7 +9,10 @@ const Signup = ({ isOpen, onClose, onSwitchToLogin }) => {
     password: '',
     phone: '',
     confirmPassword: '',
-    role: 'student'
+    role: 'student',
+    age: '',        // ✅ ADDED
+    gender: '',     // ✅ ADDED
+    dob: ''         // ✅ ADDED
   });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -78,6 +81,13 @@ const Signup = ({ isOpen, onClose, onSwitchToLogin }) => {
       return;
     }
 
+    // ✅ Validate age
+    if (formData.age && (formData.age < 16 || formData.age > 100)) {
+      setError('Age must be between 16 and 100');
+      setLoading(false);
+      return;
+    }
+
     try {
       const response = await fetch('https://edulearnbackend-ffiv.onrender.com/api/auth/signup', {
         method: 'POST',
@@ -91,15 +101,16 @@ const Signup = ({ isOpen, onClose, onSwitchToLogin }) => {
           phone: formData.phone,
           password: formData.password,
           role: formData.role,
-          age: formData.age,        
-          gender: formData.gender,  
-          dob: formData.dob   
+          age: formData.age,        // ✅ NOW INCLUDED
+          gender: formData.gender,  // ✅ NOW INCLUDED
+          dob: formData.dob         // ✅ NOW INCLUDED
         }),
       });
 
       const data = await response.json();
 
       if (data.success) {
+        alert('Account created successfully! Please login.');
         onSwitchToLogin();
         setFormData({ 
           name: '', 
@@ -108,7 +119,10 @@ const Signup = ({ isOpen, onClose, onSwitchToLogin }) => {
           password: '', 
           phone: '',
           confirmPassword: '',
-          role: 'student' 
+          role: 'student',
+          age: '',      // ✅ RESET
+          gender: '',   // ✅ RESET
+          dob: ''       // ✅ RESET
         });
       } else {
         setError(data.message || data.error || 'Signup failed');
@@ -209,20 +223,78 @@ const Signup = ({ isOpen, onClose, onSwitchToLogin }) => {
               />
             </div>
 
-            <div className="relative">
+            <div>
               <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-2">
-                Phone Number*
+                Phone Number *
               </label>
-  <input
-    type="tel"
-    placeholder="789...*"
-    name="phone"                    // ← MUST BE "phone"
-    value={formData.phone || ''}     // ← Add || '' to avoid uncontrolled error
-    onChange={handleChange}         // ← This connects to state
-    required
-    className="w-full pl-2.5 pr-4 py-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
-  />
-</div>
+              <input
+                type="tel"
+                id="phone"
+                name="phone"
+                value={formData.phone}
+                onChange={handleChange}
+                required
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200"
+                placeholder="9876543210"
+              />
+            </div>
+
+            {/* ✅ NEW SECTION: Age, Gender, DOB */}
+            <div className="border-t pt-4 mt-4">
+              <h4 className="text-md font-semibold text-gray-800 mb-3">Additional Information (Optional but Recommended)</h4>
+              
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label htmlFor="age" className="block text-sm font-medium text-gray-700 mb-2">
+                    Age
+                  </label>
+                  <input
+                    type="number"
+                    id="age"
+                    name="age"
+                    value={formData.age}
+                    onChange={handleChange}
+                    min="16"
+                    max="100"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200"
+                    placeholder="Your age"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="gender" className="block text-sm font-medium text-gray-700 mb-2">
+                    Gender
+                  </label>
+                  <select
+                    id="gender"
+                    name="gender"
+                    value={formData.gender}
+                    onChange={handleChange}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200"
+                  >
+                    <option value="">Select Gender</option>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                    <option value="other">Other</option>
+                    <option value="prefer-not-to-say">Prefer not to say</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label htmlFor="dob" className="block text-sm font-medium text-gray-700 mb-2">
+                    Date of Birth
+                  </label>
+                  <input
+                    type="date"
+                    id="dob"
+                    name="dob"
+                    value={formData.dob}
+                    onChange={handleChange}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200"
+                  />
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Role Selection Section */}
