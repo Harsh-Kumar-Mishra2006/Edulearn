@@ -90,7 +90,10 @@ const Signup = ({ isOpen, onClose, onSwitchToLogin }) => {
           username: formData.username,
           phone: formData.phone,
           password: formData.password,
-          role: formData.role
+          role: formData.role,
+          age: formData.age,        
+          gender: formData.gender,  
+          dob: formData.dob   
         }),
       });
 

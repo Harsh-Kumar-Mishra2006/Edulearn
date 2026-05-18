@@ -40,114 +40,76 @@ const PersonalForm = () => {
       return;
     }
     
-    const parts = token.split('.');
-    if (parts.length === 3) {
-      const payload = JSON.parse(atob(parts[1]));
-      console.log('Token payload:', payload);
-      
-      if (payload.email) {
-        let userData = null;
-        
-        // FIRST: Try to get from PersonalInfo collection
-        try {
-          const response = await axios.get(
-            `https://edulearnbackend-ffiv.onrender.com/api/personal/personal-info/${payload.email}`,
-            {
-              headers: {
-                'Authorization': `Bearer ${token}`
-              }
-            }
-          );
-          userData = response.data?.data;
-          console.log('✅ Found data in PersonalInfo:', userData);
-        } catch (personalInfoError) {
-          console.log('No data in PersonalInfo, checking Auth profile...');
-          
-          // SECOND: Try to get from Auth profile (for new users)
-          try {
-            const authResponse = await axios.get(
-              `https://edulearnbackend-ffiv.onrender.com/api/auth/profile`,
-              {
-                headers: {
-                  'Authorization': `Bearer ${token}`
-                }
-              }
-            );
-            
-            console.log('Auth Response:', authResponse.data);
-            
-            if (authResponse.data?.success && authResponse.data?.user) {
-              const authUser = authResponse.data.user;
-              userData = {
-                name: authUser.name || '',
-                email: authUser.email || payload.email,
-                phone: authUser.phone || '',
-                age: authUser.profile?.age || '',
-                gender: authUser.profile?.gender || '',
-                dob: authUser.profile?.dob || ''
-              };
-              console.log('✅ Found data in Auth profile:', userData);
-            }
-          } catch (authError) {
-            console.log('No profile data found anywhere');
-          }
-        }
-        
-        if (userData && (userData.name || userData.email)) {
-          // Format DOB if exists
-          let dobValue = userData.dob || '';
-          if (dobValue && dobValue !== 'Invalid Date') {
-            // Check if DOB is in YYYY-MM-DD format
-            if (dobValue.match(/^\d{4}-\d{2}-\d{2}$/)) {
-              // Already in correct format
-              dobValue = dobValue;
-            } else {
-              // Try to parse and format
-              const date = new Date(dobValue);
-              if (!isNaN(date.getTime())) {
-                dobValue = date.toISOString().split('T')[0];
-              }
-            }
-            console.log('Formatted DOB:', dobValue);
-          }
-          
-          // Create new form data object
-          const newFormData = {
-            name: userData.name || '',
-            email: userData.email || payload.email,
-            phone: userData.phone || '',
-            age: userData.age ? String(userData.age) : '',
-            gender: userData.gender || '',
-            dob: dobValue
-          };
-          
-          console.log('📝 Setting form data to:', newFormData);
-          
-          setFormData(newFormData);
-          
-          // Only show auto-filled message if we actually have data
-          if (newFormData.name || newFormData.age || newFormData.gender) {
-            setAutoFilled(true);
-          }
-        } else {
-          console.log('⚠️ No user data found, showing empty form');
-          // Leave form empty for new users
-          setFormData({
-            name: payload.name || '',
-            email: payload.email,
-            age: '',
-            gender: '',
-            phone: '',
-            dob: ''
-          });
+    // ✅ USE THE NEW DEDICATED ENDPOINT
+    const response = await axios.get(
+      'https://edulearnbackend-ffiv.onrender.com/api/auth/student-profile-data',
+      {
+        headers: {
+          'Authorization': `Bearer ${token}`
         }
       }
+    );
+    
+    console.log('📦 Profile API Response:', response.data);
+    
+    if (response.data?.success && response.data?.data) {
+      const userData = response.data.data;
+      
+      console.log('✅ Profile data received:', userData);
+      
+      // Format DOB if exists
+      let dobValue = userData.dob || '';
+      if (dobValue && dobValue !== 'Invalid Date' && dobValue !== '') {
+        const date = new Date(dobValue);
+        if (!isNaN(date.getTime())) {
+          dobValue = date.toISOString().split('T')[0];
+        }
+      }
+      
+      const newFormData = {
+        name: userData.name || '',
+        email: userData.email || '',
+        phone: userData.phone || '',
+        age: userData.age ? String(userData.age) : '',
+        gender: userData.gender || '',
+        dob: dobValue
+      };
+      
+      console.log('📝 Setting form data to:', newFormData);
+      
+      setFormData(newFormData);
+      
+      // Check if we have any data to auto-fill
+      const hasData = newFormData.name || newFormData.age || newFormData.gender || newFormData.phone;
+      setAutoFilled(hasData);
+      
+      if (!hasData) {
+        console.log('ℹ️ No existing profile data found - showing empty form for new user');
+      }
+    } else {
+      console.log('⚠️ No profile data found');
+      setAutoFilled(false);
     }
+    
   } catch (error) {
     console.error('❌ Error fetching profile:', error);
+    
     if (error.response) {
-      console.error('Error response data:', error.response.data);
-      console.error('Error response status:', error.response.status);
+      console.error('Error status:', error.response.status);
+      console.error('Error data:', error.response.data);
+      
+      if (error.response.status === 404) {
+        console.log('ℹ️ No profile data yet - this is normal for new users');
+        // Leave form empty for new users
+        setFormData({
+          name: '',
+          email: '',
+          age: '',
+          gender: '',
+          phone: '',
+          dob: ''
+        });
+      }
     }
   } finally {
     setFetchingProfile(false);
@@ -361,34 +323,34 @@ const PersonalForm = () => {
                     Age *
                   </label>
                   <input
-                    type="number"
-                    name="age"
-                    value={formData.age}
-                    onChange={handleChange}
-                    required
-                    min="16"
-                    max="100"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                    placeholder="Your age"
-                  />
+  type="number"
+  name="age"
+  value={formData.age}
+  onChange={handleChange}
+  required
+  min="16"
+  max="100"
+  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+  placeholder={!formData.age ? "Enter your age" : ""}
+/>
+
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Gender *
                   </label>
                   <select
-                    name="gender"
-                    value={formData.gender}
-                    onChange={handleChange}
-                    required
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                  >
-                    <option value="">Select Gender</option>
-                    <option value="male">Male</option>
-                    <option value="female">Female</option>
-                    <option value="other">Other</option>
-                    <option value="prefer-not-to-say">Prefer not to say</option>
-                  </select>
+  name="gender"
+  value={formData.gender}
+  onChange={handleChange}
+  required
+  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+>
+  <option value="">{!formData.gender ? "Select Gender" : formData.gender}</option>
+  <option value="male">Male</option>
+  <option value="female">Female</option>
+  <option value="other">Other</option>
+</select>
                 </div>
               </div>
 
@@ -436,13 +398,14 @@ const PersonalForm = () => {
                     Date of Birth *
                   </label>
                   <input
-                    type="date"
-                    name="dob"
-                    value={formData.dob}
-                    onChange={handleChange}
-                    required
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                  />
+  type="date"
+  name="dob"
+  value={formData.dob}
+  onChange={handleChange}
+  required
+  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+  placeholder={!formData.dob ? "Select date of birth" : ""}
+/>
                 </div>
               </div>
 
