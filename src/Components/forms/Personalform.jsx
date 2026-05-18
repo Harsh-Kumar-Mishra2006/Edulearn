@@ -35,6 +35,7 @@ const PersonalForm = () => {
     
     const token = localStorage.getItem('token');
     if (!token) {
+      console.log('⚠️ No token found');
       setFetchingProfile(false);
       return;
     }
@@ -42,57 +43,112 @@ const PersonalForm = () => {
     const parts = token.split('.');
     if (parts.length === 3) {
       const payload = JSON.parse(atob(parts[1]));
+      console.log('Token payload:', payload);
       
       if (payload.email) {
         let userData = null;
         
-        // Try PersonalInfo endpoint first
+        // FIRST: Try to get from PersonalInfo collection
         try {
-          const response1 = await axios.get(
+          const response = await axios.get(
             `https://edulearnbackend-ffiv.onrender.com/api/personal/personal-info/${payload.email}`,
-            { headers: { 'Authorization': `Bearer ${token}` } }
-          );
-          userData = response1.data?.data;
-          console.log('✅ Found data in PersonalInfo');
-        } catch (err1) {
-          console.log('No data in PersonalInfo, trying Auth endpoint');
-          
-          // If not found, try Auth endpoint
-          try {
-            const response2 = await axios.get(
-              `https://edulearnbackend-ffiv.onrender.com/api/auth/profile`,
-              { headers: { 'Authorization': `Bearer ${token}` } }
-            );
-            userData = response2.data?.user?.profile;
-            if (userData) {
-              userData.name = response2.data?.user?.name;
-              userData.email = response2.data?.user?.email;
-              userData.phone = response2.data?.user?.phone;
+            {
+              headers: {
+                'Authorization': `Bearer ${token}`
+              }
             }
-            console.log('✅ Found data in Auth');
-          } catch (err2) {
+          );
+          userData = response.data?.data;
+          console.log('✅ Found data in PersonalInfo:', userData);
+        } catch (personalInfoError) {
+          console.log('No data in PersonalInfo, checking Auth profile...');
+          
+          // SECOND: Try to get from Auth profile (for new users)
+          try {
+            const authResponse = await axios.get(
+              `https://edulearnbackend-ffiv.onrender.com/api/auth/profile`,
+              {
+                headers: {
+                  'Authorization': `Bearer ${token}`
+                }
+              }
+            );
+            
+            console.log('Auth Response:', authResponse.data);
+            
+            if (authResponse.data?.success && authResponse.data?.user) {
+              const authUser = authResponse.data.user;
+              userData = {
+                name: authUser.name || '',
+                email: authUser.email || payload.email,
+                phone: authUser.phone || '',
+                age: authUser.profile?.age || '',
+                gender: authUser.profile?.gender || '',
+                dob: authUser.profile?.dob || ''
+              };
+              console.log('✅ Found data in Auth profile:', userData);
+            }
+          } catch (authError) {
             console.log('No profile data found anywhere');
           }
         }
         
-        if (userData && Object.keys(userData).length > 0) {
-          // Process and set form data as before
+        if (userData && (userData.name || userData.email)) {
+          // Format DOB if exists
+          let dobValue = userData.dob || '';
+          if (dobValue && dobValue !== 'Invalid Date') {
+            // Check if DOB is in YYYY-MM-DD format
+            if (dobValue.match(/^\d{4}-\d{2}-\d{2}$/)) {
+              // Already in correct format
+              dobValue = dobValue;
+            } else {
+              // Try to parse and format
+              const date = new Date(dobValue);
+              if (!isNaN(date.getTime())) {
+                dobValue = date.toISOString().split('T')[0];
+              }
+            }
+            console.log('Formatted DOB:', dobValue);
+          }
+          
+          // Create new form data object
           const newFormData = {
             name: userData.name || '',
             email: userData.email || payload.email,
             phone: userData.phone || '',
-            age: userData.age || '',
+            age: userData.age ? String(userData.age) : '',
             gender: userData.gender || '',
-            dob: userData.dob || ''
+            dob: dobValue
           };
           
+          console.log('📝 Setting form data to:', newFormData);
+          
           setFormData(newFormData);
-          setAutoFilled(true);
+          
+          // Only show auto-filled message if we actually have data
+          if (newFormData.name || newFormData.age || newFormData.gender) {
+            setAutoFilled(true);
+          }
+        } else {
+          console.log('⚠️ No user data found, showing empty form');
+          // Leave form empty for new users
+          setFormData({
+            name: payload.name || '',
+            email: payload.email,
+            age: '',
+            gender: '',
+            phone: '',
+            dob: ''
+          });
         }
       }
     }
   } catch (error) {
-    console.error('Error fetching profile:', error);
+    console.error('❌ Error fetching profile:', error);
+    if (error.response) {
+      console.error('Error response data:', error.response.data);
+      console.error('Error response status:', error.response.status);
+    }
   } finally {
     setFetchingProfile(false);
   }
