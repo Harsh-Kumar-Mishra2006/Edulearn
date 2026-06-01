@@ -1,4 +1,4 @@
-// components/Test.jsx
+// Pages/Test.jsx
 import React, { useState, useEffect } from 'react';
 import { 
   FileText, 
@@ -30,6 +30,7 @@ const Test = () => {
   const [quizzes, setQuizzes] = useState([]);
   const [expandedQuiz, setExpandedQuiz] = useState(null);
   const [user, setUser] = useState(null);
+  const navigate = useNavigate();
 
   // Update the fetchStudentQuizzes function in Test.jsx
 // Update the fetchStudentQuizzes function in Test.jsx
@@ -146,7 +147,7 @@ useEffect(() => {
     if (response.ok) {
       const data = await response.json();
       // NOW IT WORKS!
-      window.location.href = `/quiz/attempt/${data.data.attempt_id}`;
+      navigate(`/quiz/attempt/${data.data.attempt_id}`);
     } else {
       alert('Failed to start quiz');
     }
