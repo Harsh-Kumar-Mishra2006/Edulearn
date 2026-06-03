@@ -1,0 +1,403 @@
+// components/TeachersList.jsx
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { 
+  Users, 
+  GraduationCap, 
+  Trash2, 
+  ChevronLeft, 
+  ChevronRight,
+  Mail,
+  BookOpen,
+  Clock,
+  Award,
+  AlertCircle
+} from 'lucide-react';
+
+const TeachersList = ({ 
+  onDeleteTeacher, 
+  showDeleteButton = true,
+  itemsPerPage = 6,
+  className = "",
+  onTeacherClick,
+  emptyStateMessage = "No teachers registered yet",
+  emptyStateSubmessage = "Teachers will appear here once added",
+  showHeader = true,
+  headerTitle = "Registered Teachers",
+  showPagination = true,
+  customFetchUrl = null,
+  filterBy = null // Optional filter like { status: 'active', course: 'Math' }
+}) => {
+  const [teachers, setTeachers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [deleteConfirmId, setDeleteConfirmId] = useState(null);
+  const [totalTeachers, setTotalTeachers] = useState(0);
+
+  // Fetch teachers function
+  const fetchTeachers = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const token = localStorage.getItem('token');
+      
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      
+      // Use custom URL if provided, otherwise use default
+      const baseUrl = customFetchUrl || 'https://edulearnbackend-ffiv.onrender.com/api/admin/teachers';
+      const url = new URL(baseUrl);
+      
+      // Add query parameters
+      url.searchParams.append('getAll', 'true');
+      
+      // Add any filters if provided
+      if (filterBy) {
+        Object.entries(filterBy).forEach(([key, value]) => {
+          if (value) url.searchParams.append(key, value);
+        });
+      }
+      
+      const response = await fetch(url.toString(), {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch teachers: ${response.status}`);
+      }
+      
+      const result = await response.json();
+      console.log('Teachers API Response:', result);
+      
+      // Handle different response structures
+      let teachersArray = [];
+      if (result.success && Array.isArray(result.data)) {
+        teachersArray = result.data;
+      } else if (Array.isArray(result.teachers)) {
+        teachersArray = result.teachers;
+      } else if (Array.isArray(result)) {
+        teachersArray = result;
+      } else if (result.data && Array.isArray(result.data.teachers)) {
+        teachersArray = result.data.teachers;
+      }
+      
+      console.log('Loaded teachers count:', teachersArray.length);
+      setTeachers(teachersArray);
+      setTotalTeachers(teachersArray.length);
+      
+    } catch (error) {
+      if (error.name === 'AbortError') {
+        setError('Request timeout. Please try again.');
+      } else {
+        setError(error.message || 'Failed to fetch teachers');
+        console.error('Error fetching teachers:', error);
+      }
+      setTeachers([]);
+      setTotalTeachers(0);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Initial fetch
+  useEffect(() => {
+    fetchTeachers();
+  }, [customFetchUrl, JSON.stringify(filterBy)]); // Refetch when filters change
+
+  // Handle delete teacher
+  const handleDeleteTeacher = async (teacherId) => {
+    if (onDeleteTeacher) {
+      // If parent component handles deletion
+      await onDeleteTeacher(teacherId);
+    } else {
+      // Default deletion logic
+      try {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`https://edulearnbackend-ffiv.onrender.com/api/admin/teachers/${teacherId}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error('Delete failed');
+        }
+
+        // Remove from local state
+        setTeachers(prev => prev.filter(t => t._id !== teacherId));
+        setTotalTeachers(prev => prev - 1);
+      } catch (error) {
+        console.error('Error deleting teacher:', error);
+        // Refresh list to get accurate state
+        fetchTeachers();
+      }
+    }
+    setDeleteConfirmId(null);
+  };
+
+  // Pagination logic
+  const totalPages = Math.ceil(teachers.length / itemsPerPage);
+  const indexOfLastTeacher = currentPage * itemsPerPage;
+  const indexOfFirstTeacher = indexOfLastTeacher - itemsPerPage;
+  const currentTeachers = teachers.slice(indexOfFirstTeacher, indexOfLastTeacher);
+
+  const handleNextPage = () => {
+    if (currentPage < totalPages) {
+      setCurrentPage(prev => prev + 1);
+    }
+  };
+
+  const handlePrevPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(prev => prev - 1);
+    }
+  };
+
+  // Loading skeleton
+  if (loading) {
+    return (
+      <div className={`bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-8 ${className}`}>
+        {showHeader && (
+          <div className="flex justify-between items-center mb-8">
+            <h3 className="text-2xl font-semibold">{headerTitle}</h3>
+          </div>
+        )}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {[1, 2, 3, 4, 5, 6].map(i => (
+            <div key={i} className="bg-white/10 rounded-xl p-6 animate-pulse">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-white/20 rounded-full"></div>
+                <div className="flex-1">
+                  <div className="h-5 bg-white/20 rounded w-3/4 mb-2"></div>
+                  <div className="h-4 bg-white/20 rounded w-1/2"></div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className={`bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-8 ${className}`}>
+        <div className="text-center py-12">
+          <AlertCircle className="w-16 h-16 mx-auto mb-4 text-red-400" />
+          <p className="text-red-400 text-lg mb-2">Error Loading Teachers</p>
+          <p className="text-white/70 mb-4">{error}</p>
+          <button
+            onClick={fetchTeachers}
+            className="px-6 py-3 bg-white/10 hover:bg-white/20 rounded-xl text-white transition-all"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-8 ${className}`}>
+      {/* Header Section */}
+      {showHeader && (
+        <div className="flex justify-between items-center mb-8">
+          <h3 className="text-2xl font-semibold">{headerTitle}</h3>
+          <div className="flex items-center gap-4">
+            <span className="bg-white/10 px-3 py-1 rounded-full text-sm">
+              {totalTeachers} teachers total
+            </span>
+            {showPagination && totalPages > 1 && (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handlePrevPage}
+                  disabled={currentPage === 1}
+                  className="bg-white/10 hover:bg-white/20 p-2 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <span className="text-sm">
+                  Page {currentPage} of {totalPages}
+                </span>
+                <button
+                  onClick={handleNextPage}
+                  disabled={currentPage === totalPages}
+                  className="bg-white/10 hover:bg-white/20 p-2 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Empty State */}
+      {teachers.length === 0 ? (
+        <div className="text-center py-12">
+          <GraduationCap className="w-16 h-16 mx-auto mb-4 text-white/50" />
+          <p className="text-white/70 text-lg">{emptyStateMessage}</p>
+          <p className="text-white/50">{emptyStateSubmessage}</p>
+        </div>
+      ) : (
+        <>
+          {/* Teachers Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {currentTeachers.map((teacher, index) => (
+              <motion.div
+                key={teacher._id}
+                className={`bg-white/10 border border-white/20 rounded-xl p-6 flex items-center gap-4 hover:bg-white/15 transition-all duration-300 ${
+                  onTeacherClick ? 'cursor-pointer' : ''
+                }`}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.1 }}
+                whileHover={{ y: -5 }}
+                onClick={() => onTeacherClick && onTeacherClick(teacher)}
+              >
+                {/* Teacher Avatar */}
+                <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
+                  <GraduationCap className="w-6 h-6 text-white" />
+                </div>
+
+                {/* Teacher Info */}
+                <div className="flex-1 min-w-0">
+                  <h4 className="font-semibold text-lg truncate">{teacher.name}</h4>
+                  
+                  {/* Email */}
+                  <div className="flex items-center gap-1 text-white/80 text-sm truncate">
+                    <Mail className="w-3 h-3 flex-shrink-0" />
+                    <span className="truncate">{teacher.email}</span>
+                  </div>
+                  
+                  {/* Course */}
+                  {teacher.course && (
+                    <div className="flex items-center gap-1 text-yellow-400 text-sm font-medium mt-1">
+                      <BookOpen className="w-3 h-3 flex-shrink-0" />
+                      <span className="truncate">{teacher.course}</span>
+                    </div>
+                  )}
+
+                  {/* Status & Additional Info */}
+                  <div className="flex flex-wrap items-center gap-2 mt-2">
+                    {/* Status Badge */}
+                    <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold ${
+                      teacher.status === 'active' 
+                        ? 'bg-green-500/20 text-green-400 border border-green-400/50' 
+                        : teacher.status === 'pending'
+                        ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-400/50'
+                        : 'bg-red-500/20 text-red-400 border border-red-400/50'
+                    }`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${
+                        teacher.status === 'active' ? 'bg-green-400' : 'bg-current'
+                      }`}></span>
+                      {teacher.status || 'active'}
+                    </span>
+
+                    {/* Qualification */}
+                    {teacher.qualification && (
+                      <span className="flex items-center gap-1 text-white/60 text-xs">
+                        <Award className="w-3 h-3" />
+                        {teacher.qualification}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Experience */}
+                  {teacher.years_of_experience && (
+                    <div className="flex items-center gap-1 text-white/60 text-xs mt-1">
+                      <Clock className="w-3 h-3" />
+                      <span>{teacher.years_of_experience} years experience</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Delete Button (optional) */}
+                {showDeleteButton && (
+                  <button 
+                    className="bg-red-500/20 border border-red-500 text-red-400 w-8 h-8 rounded-lg flex items-center justify-center hover:bg-red-500 hover:text-white transition-all duration-300 flex-shrink-0"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setDeleteConfirmId(teacher._id);
+                    }}
+                    title="Delete teacher"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
+              </motion.div>
+            ))}
+          </div>
+          
+          {/* Pagination Info */}
+          {showPagination && totalPages > 1 && (
+            <div className="mt-8 pt-6 border-t border-white/10 text-center">
+              <p className="text-white/70">
+                Showing teachers {indexOfFirstTeacher + 1} to {Math.min(indexOfLastTeacher, teachers.length)} of {totalTeachers}
+              </p>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      <AnimatePresence>
+        {deleteConfirmId && (
+          <motion.div
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setDeleteConfirmId(null)}
+          >
+            <motion.div
+              className="bg-white rounded-2xl p-8 text-center max-w-md w-full"
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.8, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Trash2 className="w-16 h-16 text-red-500 mx-auto mb-4" />
+              <h3 className="text-2xl font-bold text-gray-800 mb-2">Delete Teacher</h3>
+              <p className="text-gray-600 mb-4">
+                Are you sure you want to delete{' '}
+                <span className="font-semibold">
+                  {teachers.find(t => t._id === deleteConfirmId)?.name}
+                </span>
+                ?
+              </p>
+              <p className="text-red-500 font-semibold mb-6">This action cannot be undone.</p>
+              <div className="flex gap-3">
+                <button 
+                  onClick={() => setDeleteConfirmId(null)}
+                  className="flex-1 px-6 py-3 bg-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-400 transition-all duration-200"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={() => handleDeleteTeacher(deleteConfirmId)}
+                  className="flex-1 px-6 py-3 bg-red-500 text-white rounded-xl font-semibold hover:bg-red-600 transform hover:-translate-y-0.5 transition-all duration-200"
+                >
+                  Delete
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
+
+export default TeachersList;

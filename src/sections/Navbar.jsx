@@ -41,7 +41,7 @@ const Navbar = () => {
         ...baseItems,
         { name: 'My Learning', href: '/my-learning', current: false },
         { name: 'Test', href: '/test', current: false },
-        { name: 'Record', href: '/student-record', current: false },
+        { name: 'Record', href: '/records', current: false },
         { name: 'Assignments', href: '/assignments', current: false },
       ];
     } else if (user?.role === 'teacher') {
@@ -57,7 +57,7 @@ const Navbar = () => {
         ...baseItems,
         { name: 'User Management', href: '/users', current: false },
         { name: 'Analytics', href: '/analytics', current: false },
-        { name: 'Student Records', href: '/student-records', current: false },
+        { name: 'Student Records', href: '/records', current: false },
         { name: 'Settings', href: '/admin-settings', current: false },
       ];
     }

@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import axios from 'axios';
 import AdminQueries from './adminquerries/adminQuerries'
+import TeachersList from './TeacherList';
 
 const StudentRecords = () => {
   const [payments, setPayments] = useState([]);
@@ -134,6 +135,7 @@ const StudentRecords = () => {
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 mb-8">
           <div className="flex items-center justify-between">
             <AdminQueries/>
+            <TeachersList/>
             <div>
               <h1 className="text-3xl font-bold text-gray-900">Student Records</h1>
               <p className="text-gray-600 mt-2">
@@ -314,6 +316,8 @@ const StudentRecords = () => {
             </div>
           )}
         </div>
+
+        
 
         {/* Stats Summary */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mt-6">
