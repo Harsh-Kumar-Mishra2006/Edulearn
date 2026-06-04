@@ -109,7 +109,7 @@ const App = () => {
           <Route path="/background-form" element={<BackgroundForm />} />
           <Route path="/course-form" element={<CourseForm />} />
           <Route path="/payment" element={<PaymentPage/>} />
-          <Route path="/student-records" element={<StudentRecords/>}/>
+          <Route path="/records" element={<StudentRecords/>}/>
           <Route path="/analytics" element={<AdminAnalytics/>}/>
 
            {/* Admin specific routes */}

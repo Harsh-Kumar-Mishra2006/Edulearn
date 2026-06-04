@@ -1,4 +1,5 @@
-//admindashboard
+// AdminDashboard.jsx - Fixed version
+
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -27,38 +28,42 @@ const AdminDashboard = () => {
   const [showAddTeacherForm, setShowAddTeacherForm] = useState(false);
   const [deleteTeacherId, setDeleteTeacherId] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null); // ✅ ADD THIS - the missing state
   const [credentials, setCredentials] = useState(null);
   const [copiedField, setCopiedField] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [teachersPerPage] = useState(6); // Show 6 teachers per page
+  const [teachersPerPage] = useState(6);
   const navigate = useNavigate();
 
-  // AdminDashboard.jsx - Update the fetchTeachers function
+  // Fetch teachers function - FIXED VERSION
+  const fetchTeachers = async () => {
+    try {
+      setLoading(true);
+      setError(null); // ✅ Now setError is defined
+      
+      const token = localStorage.getItem('token');
+      
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      
+      const response = await fetch('https://edulearnbackend-ffiv.onrender.com/api/admin/teachers', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        signal: controller.signal
+      });
 
-const fetchTeachers = async () => {
-  try {
-    setLoading(true);
-    const token = localStorage.getItem('token');
-    
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
-    
-    // ✅ Add getAll=true parameter to fetch ALL teachers
-    const response = await fetch('https://edulearnbackend-ffiv.onrender.com/api/admin/teachers?getAll=true', {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      signal: controller.signal
-    });
-
-    clearTimeout(timeoutId);
-    
-    if (response.ok) {
+      clearTimeout(timeoutId);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch teachers: ${response.status}`);
+      }
+      
       const result = await response.json();
       console.log('Teachers API Response:', result);
       
-      // ✅ Handle the new response structure
+      // Extract teachers array from different response structures
       let teachersArray = [];
       if (result.success && Array.isArray(result.data)) {
         teachersArray = result.data;
@@ -70,29 +75,36 @@ const fetchTeachers = async () => {
         teachersArray = result.data.teachers;
       }
       
-      console.log('Loaded teachers count:', teachersArray.length);
-      setTeachers(teachersArray);
-    } else {
-      console.error('Failed to fetch teachers:', response.status);
+      // Filter out inactive/deleted teachers
+      const activeTeachers = teachersArray.filter(teacher => 
+        teacher.status !== 'inactive' && 
+        teacher.status !== 'deleted' &&
+        teacher.isActive !== false
+      );
+      
+      console.log('Active teachers count:', activeTeachers.length);
+      console.log('Filtered out inactive teachers:', teachersArray.length - activeTeachers.length);
+      
+      setTeachers(activeTeachers);
+      
+    } catch (error) {
+      if (error.name === 'AbortError') {
+        setError('Request timeout. Please try again.');
+      } else {
+        setError(error.message || 'Failed to fetch teachers');
+        console.error('Error fetching teachers:', error);
+      }
       setTeachers([]);
+    } finally {
+      setLoading(false);
     }
-  } catch (error) {
-    if (error.name === 'AbortError') {
-      console.error('Request timeout');
-    } else {
-      console.error('Error fetching teachers:', error);
-    }
-    setTeachers([]);
-  } finally {
-    setLoading(false);
-  }
-};
+  };
+
   useEffect(() => {
     fetchTeachers();
   }, []);
 
   const handleAddTeacher = async (teacherData) => {
-    // ... keep your existing handleAddTeacher code as is ...
     try {
       const token = localStorage.getItem('token');
       const response = await fetch('https://edulearnbackend-ffiv.onrender.com/api/admin/add-teacher', {
@@ -141,7 +153,6 @@ const fetchTeachers = async () => {
   const handleDeleteTeacher = async (teacherId) => {
     try {
       const token = localStorage.getItem('token');
-      const teacherToDelete = teachers.find(t => t._id === teacherId);
       
       // Optimistically remove from UI
       setTeachers(prev => prev.filter(teacher => teacher._id !== teacherId));
@@ -210,17 +221,40 @@ const fetchTeachers = async () => {
     }
   };
 
+  // Loading state
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-600 via-purple-600 to-indigo-800 flex items-center justify-center">
-        <div className="text-white text-xl">Loading Admin Dashboard...</div>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-white mx-auto mb-4"></div>
+          <div className="text-white text-xl">Loading Admin Dashboard...</div>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-600 via-purple-600 to-indigo-800 flex items-center justify-center">
+        <div className="bg-white/10 backdrop-blur-md rounded-2xl p-8 text-center max-w-md">
+          <AlertCircle className="w-16 h-16 text-red-400 mx-auto mb-4" />
+          <h3 className="text-xl font-semibold text-white mb-2">Error Loading Dashboard</h3>
+          <p className="text-white/80 mb-4">{error}</p>
+          <button
+            onClick={fetchTeachers}
+            className="px-6 py-2 bg-white/20 hover:bg-white/30 rounded-lg text-white transition-all"
+          >
+            Try Again
+          </button>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-600 via-purple-600 to-indigo-800">
-      {/* Header - keep as is */}
+      {/* Header */}
       <motion.div
         className="bg-white/10 backdrop-blur-md border-b border-white/20"
         initial={{ y: -50, opacity: 0 }}
@@ -434,8 +468,7 @@ const fetchTeachers = async () => {
   );
 };
 
-
-// Credentials Info Box Component (keep existing)
+// Credentials Info Box Component
 const CredentialsInfoBox = ({ credentials, onClose, onCopy, copiedField }) => (
   <motion.div
     className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50"
@@ -451,7 +484,6 @@ const CredentialsInfoBox = ({ credentials, onClose, onCopy, copiedField }) => (
       exit={{ scale: 0.8, opacity: 0 }}
       onClick={(e) => e.stopPropagation()}
     >
-      {/* Close Button */}
       <button
         onClick={onClose}
         className="absolute top-4 right-4 text-white/80 hover:text-white transition-colors"
@@ -459,7 +491,6 @@ const CredentialsInfoBox = ({ credentials, onClose, onCopy, copiedField }) => (
         <X className="w-6 h-6" />
       </button>
 
-      {/* Success Icon */}
       <div className="text-center mb-6">
         <CheckCircle className="w-16 h-16 text-white mx-auto mb-4" />
         <h3 className="text-2xl font-bold text-white mb-2">Teacher Added Successfully!</h3>
@@ -468,9 +499,7 @@ const CredentialsInfoBox = ({ credentials, onClose, onCopy, copiedField }) => (
         </p>
       </div>
 
-      {/* Credentials Box */}
       <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-xl p-6 mb-6">
-        {/* Username */}
         <div className="mb-4">
           <label className="block text-white/80 text-sm font-medium mb-2">Username</label>
           <div className="flex items-center gap-2">
@@ -493,7 +522,6 @@ const CredentialsInfoBox = ({ credentials, onClose, onCopy, copiedField }) => (
           </div>
         </div>
 
-        {/* Password */}
         <div className="mb-4">
           <label className="block text-white/80 text-sm font-medium mb-2">Temporary Password</label>
           <div className="flex items-center gap-2">
@@ -516,7 +544,6 @@ const CredentialsInfoBox = ({ credentials, onClose, onCopy, copiedField }) => (
           </div>
         </div>
 
-        {/* Login URL */}
         <div>
           <label className="block text-white/80 text-sm font-medium mb-2">Login URL</label>
           <div className="flex items-center gap-2">
@@ -540,7 +567,6 @@ const CredentialsInfoBox = ({ credentials, onClose, onCopy, copiedField }) => (
         </div>
       </div>
 
-      {/* Important Note */}
       <div className="bg-yellow-500/20 border border-yellow-400/50 rounded-lg p-4">
         <p className="text-yellow-200 text-sm text-center">
           <strong>Important:</strong> Share these credentials with the teacher. 
@@ -548,7 +574,6 @@ const CredentialsInfoBox = ({ credentials, onClose, onCopy, copiedField }) => (
         </p>
       </div>
 
-      {/* Action Button */}
       <button
         onClick={onClose}
         className="w-full mt-6 bg-white text-green-600 py-3 rounded-xl font-semibold hover:bg-gray-100 transform hover:-translate-y-0.5 transition-all duration-200"
@@ -559,7 +584,7 @@ const CredentialsInfoBox = ({ credentials, onClose, onCopy, copiedField }) => (
   </motion.div>
 );
 
-// Delete Confirmation Component (keep existing)
+// Delete Confirmation Component
 const DeleteConfirmation = ({ teacher, onConfirm, onCancel }) => (
   <motion.div
     className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50"

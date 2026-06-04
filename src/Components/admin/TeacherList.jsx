@@ -11,7 +11,8 @@ import {
   BookOpen,
   Clock,
   Award,
-  AlertCircle
+  AlertCircle,
+  Loader2
 } from 'lucide-react';
 
 const TeachersList = ({ 
@@ -36,76 +37,83 @@ const TeachersList = ({
   const [totalTeachers, setTotalTeachers] = useState(0);
 
   // Fetch teachers function
-  const fetchTeachers = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      const token = localStorage.getItem('token');
-      
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000);
-      
-      // Use custom URL if provided, otherwise use default
-      const baseUrl = customFetchUrl || 'https://edulearnbackend-ffiv.onrender.com/api/admin/teachers';
-      const url = new URL(baseUrl);
-      
-      // Add query parameters
-      url.searchParams.append('getAll', 'true');
-      
-      // Add any filters if provided
-      if (filterBy) {
-        Object.entries(filterBy).forEach(([key, value]) => {
-          if (value) url.searchParams.append(key, value);
-        });
-      }
-      
-      const response = await fetch(url.toString(), {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        signal: controller.signal
+  // Update the fetchTeachers function to filter out inactive teachers
+const fetchTeachers = async () => {
+  try {
+    setLoading(true);
+    setError(null);
+    
+    const token = localStorage.getItem('token');
+    
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    
+    const baseUrl = customFetchUrl || 'https://edulearnbackend-ffiv.onrender.com/api/admin/teachers';
+    const url = new URL(baseUrl);
+    
+    url.searchParams.append('getAll', 'true');
+    
+    if (filterBy) {
+      Object.entries(filterBy).forEach(([key, value]) => {
+        if (value) url.searchParams.append(key, value);
       });
-
-      clearTimeout(timeoutId);
-      
-      if (!response.ok) {
-        throw new Error(`Failed to fetch teachers: ${response.status}`);
-      }
-      
-      const result = await response.json();
-      console.log('Teachers API Response:', result);
-      
-      // Handle different response structures
-      let teachersArray = [];
-      if (result.success && Array.isArray(result.data)) {
-        teachersArray = result.data;
-      } else if (Array.isArray(result.teachers)) {
-        teachersArray = result.teachers;
-      } else if (Array.isArray(result)) {
-        teachersArray = result;
-      } else if (result.data && Array.isArray(result.data.teachers)) {
-        teachersArray = result.data.teachers;
-      }
-      
-      console.log('Loaded teachers count:', teachersArray.length);
-      setTeachers(teachersArray);
-      setTotalTeachers(teachersArray.length);
-      
-    } catch (error) {
-      if (error.name === 'AbortError') {
-        setError('Request timeout. Please try again.');
-      } else {
-        setError(error.message || 'Failed to fetch teachers');
-        console.error('Error fetching teachers:', error);
-      }
-      setTeachers([]);
-      setTotalTeachers(0);
-    } finally {
-      setLoading(false);
     }
-  };
+    
+    const response = await fetch(url.toString(), {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      signal: controller.signal
+    });
+
+    clearTimeout(timeoutId);
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch teachers: ${response.status}`);
+    }
+    
+    const result = await response.json();
+    console.log('Teachers API Response:', result);
+    
+    let teachersArray = [];
+    if (result.success && Array.isArray(result.data)) {
+      teachersArray = result.data;
+    } else if (Array.isArray(result.teachers)) {
+      teachersArray = result.teachers;
+    } else if (Array.isArray(result)) {
+      teachersArray = result;
+    } else if (result.data && Array.isArray(result.data.teachers)) {
+      teachersArray = result.data.teachers;
+    }
+    
+    // 🔥 FIX: Filter out inactive/deleted teachers
+    // Only show active teachers (status !== 'inactive' and status !== 'deleted')
+    const activeTeachers = teachersArray.filter(teacher => 
+      teacher.status !== 'inactive' && 
+      teacher.status !== 'deleted' &&
+      teacher.isActive !== false  // If there's an isActive field
+    );
+    
+    console.log('Active teachers count:', activeTeachers.length);
+    console.log('Filtered out inactive teachers:', teachersArray.length - activeTeachers.length);
+    
+    setTeachers(activeTeachers);
+    setTotalTeachers(activeTeachers.length);
+    
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      setError('Request timeout. Please try again.');
+    } else {
+      setError(error.message || 'Failed to fetch teachers');
+      console.error('Error fetching teachers:', error);
+    }
+    setTeachers([]);
+    setTotalTeachers(0);
+  } finally {
+    setLoading(false);
+  }
+};
 
   // Initial fetch
   useEffect(() => {
@@ -163,43 +171,68 @@ const TeachersList = ({
     }
   };
 
-  // Loading skeleton
-  if (loading) {
-    return (
-      <div className={`bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-8 ${className}`}>
-        {showHeader && (
-          <div className="flex justify-between items-center mb-8">
-            <h3 className="text-2xl font-semibold">{headerTitle}</h3>
-          </div>
-        )}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {[1, 2, 3, 4, 5, 6].map(i => (
-            <div key={i} className="bg-white/10 rounded-xl p-6 animate-pulse">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-white/20 rounded-full"></div>
-                <div className="flex-1">
-                  <div className="h-5 bg-white/20 rounded w-3/4 mb-2"></div>
-                  <div className="h-4 bg-white/20 rounded w-1/2"></div>
-                </div>
-              </div>
-            </div>
-          ))}
+  
+
+if (loading) {
+  return (
+    <div className={`bg-gradient-to-r from-blue-200 to-pink-200 backdrop-blur-md border border-white/10 rounded-2xl p-8 ${className}`}>
+      {showHeader && (
+        <div className="flex justify-between items-center mb-8">
+          <h3 className="text-2xl font-semibold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
+            {headerTitle}
+          </h3>
+        </div>
+      )}
+      
+      {/* Centered Loader Section */}
+      <div className="flex flex-col items-center justify-center py-16 px-4">
+        {/* Animated Loader */}
+        <Loader2 
+          className="w-16 h-16 text-white/80 animate-spin mb-6" 
+          strokeWidth={1.5}
+        />
+        
+        {/* Loading Text with Animation */}
+        <div className="text-center space-y-3">
+          <p className="text-xl font-medium text-gray-800 animate-pulse">
+            Loading content...
+          </p>
+          <p className="text-sm text-gray-600/80">
+            Please wait while we fetch the latest updates
+          </p>
         </div>
       </div>
-    );
-  }
+      
+      {/* Optional: Keep skeleton grid as fallback or remove if you want pure loader */}
+      {/* Uncomment below if you want skeleton grid instead of centered loader */}
+      {/* <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {[1, 2, 3, 4, 5, 6].map(i => (
+          <div key={i} className="bg-white/10 rounded-xl p-6 animate-pulse">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-white/20 rounded-full"></div>
+              <div className="flex-1">
+                <div className="h-5 bg-white/20 rounded w-3/4 mb-2"></div>
+                <div className="h-4 bg-white/20 rounded w-1/2"></div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div> */}
+    </div>
+  );
+}
 
   // Error state
   if (error) {
     return (
-      <div className={`bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-8 ${className}`}>
+      <div className={`bg-gradient-to-r from-blue-200 to-pink-200 backdrop-blur-md border border-white/10 rounded-2xl p-8 ${className}`}>
         <div className="text-center py-12">
-          <AlertCircle className="w-16 h-16 mx-auto mb-4 text-red-400" />
-          <p className="text-red-400 text-lg mb-2">Error Loading Teachers</p>
-          <p className="text-white/70 mb-4">{error}</p>
+          <AlertCircle className="w-16 h-16 mx-auto mb-4 text-red-800" />
+          <p className="text-red-800 text-lg mb-2">Error Loading Teachers</p>
+          <p className="text-black mb-4">{error}</p>
           <button
             onClick={fetchTeachers}
-            className="px-6 py-3 bg-white/10 hover:bg-white/20 rounded-xl text-white transition-all"
+            className="px-6 py-3 bg-black hover:bg-white/20 rounded-xl text-white transition-all"
           >
             Try Again
           </button>
@@ -209,13 +242,13 @@ const TeachersList = ({
   }
 
   return (
-    <div className={`bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-8 ${className}`}>
+    <div className={`bg-gradient-to-r from-blue-200 to-pink-200 backdrop-blur-md border border-white/10 p-4 rounded-2xl  ${className}`}>
       {/* Header Section */}
       {showHeader && (
         <div className="flex justify-between items-center mb-8">
-          <h3 className="text-2xl font-semibold">{headerTitle}</h3>
+          <h3 className="text-black font-sans rounded-xl text-2xl font-bold">{headerTitle}</h3>
           <div className="flex items-center gap-4">
-            <span className="bg-white/10 px-3 py-1 rounded-full text-sm">
+            <span className="bg-white/80 px-3 py-1 rounded-full text-sm">
               {totalTeachers} teachers total
             </span>
             {showPagination && totalPages > 1 && (
@@ -257,7 +290,7 @@ const TeachersList = ({
             {currentTeachers.map((teacher, index) => (
               <motion.div
                 key={teacher._id}
-                className={`bg-white/10 border border-white/20 rounded-xl p-6 flex items-center gap-4 hover:bg-white/15 transition-all duration-300 ${
+                className={`bg-blue-600 border border-white/20 rounded-xl p-6 flex items-center gap-4 hover:bg-blue-500 transition-all duration-300 ${
                   onTeacherClick ? 'cursor-pointer' : ''
                 }`}
                 initial={{ opacity: 0, y: 20 }}
@@ -273,7 +306,7 @@ const TeachersList = ({
 
                 {/* Teacher Info */}
                 <div className="flex-1 min-w-0">
-                  <h4 className="font-semibold text-lg truncate">{teacher.name}</h4>
+                  <h4 className="text-white font-semibold text-lg truncate">{teacher.name}</h4>
                   
                   {/* Email */}
                   <div className="flex items-center gap-1 text-white/80 text-sm truncate">
@@ -343,7 +376,7 @@ const TeachersList = ({
           {/* Pagination Info */}
           {showPagination && totalPages > 1 && (
             <div className="mt-8 pt-6 border-t border-white/10 text-center">
-              <p className="text-white/70">
+              <p className="text-blue-800">
                 Showing teachers {indexOfFirstTeacher + 1} to {Math.min(indexOfLastTeacher, teachers.length)} of {totalTeachers}
               </p>
             </div>
