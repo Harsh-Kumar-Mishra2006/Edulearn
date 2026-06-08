@@ -23,6 +23,7 @@ import AdminAnalytics from './Components/admin/Analytics/Analytics';
 import NewCourses from './sections/newCourses';
 import StudentAssignmentView from './Components/Student/assignments/studentAssignments';
 import StudentQueryForm from './Components/forms/querryForm';
+import Members from './Components/admin/members/Members';
 // Add this admin check function
 const checkAdminAuth = () => {
   const token = localStorage.getItem('token');
@@ -116,6 +117,7 @@ const App = () => {
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/users" element={<AdminDashboard />} />
           <Route path="/admin-settings" element={<AdminDashboard />} />
+          <Route path="/members" element={<Members />} />
 
         </Routes>
         <Footer />
