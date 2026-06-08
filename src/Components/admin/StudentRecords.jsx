@@ -1,5 +1,6 @@
 // components/teacher/StudentRecords.jsx
 import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Search, 
   Download, 
@@ -11,69 +12,105 @@ import {
   User,
   Mail,
   BookOpen,
-  Calendar
+  Calendar,
+  DollarSign,
+  RefreshCw,
+  Loader2,
+  ChevronLeft,
+  ChevronRight,
+  FileText,
+  CreditCard
 } from 'lucide-react';
 import axios from 'axios';
-import AdminQueries from './adminquerries/adminQuerries'
+import AdminQueries from './adminquerries/AdminQueries';
 import TeachersList from './TeacherList';
 
 const StudentRecords = () => {
   const [payments, setPayments] = useState([]);
+  const [filteredPayments, setFilteredPayments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [stats, setStats] = useState({
+    total: 0,
+    pending: 0,
+    verified: 0,
+    rejected: 0,
+    totalRevenue: 0
+  });
+
+  const itemsPerPage = 8;
 
   useEffect(() => {
     fetchStudentRecords();
   }, []);
 
-  const fetchStudentRecords = async () => {
-  try {
-    setLoading(true);
-    // Fetch payments
-    const paymentsResponse = await axios.get('https://edulearnbackend-ffiv.onrender.com/api/teacher/student-records');
+  useEffect(() => {
+    let filtered = [...payments];
     
-    if (paymentsResponse.data.success) {
-      // Fetch course details for each payment
-      const paymentsWithCourseDetails = await Promise.all(
-        paymentsResponse.data.payments.map(async (payment) => {
-          try {
-            // Get course details from backend
-            const courseResponse = await axios.get(
-              `https://edulearnbackend-ffiv.onrender.com/api/courses?title=${encodeURIComponent(payment.course_track)}`
-            );
-            
-            return {
-              ...payment,
-              course_details: courseResponse.data.success ? courseResponse.data.course : null,
-              actual_amount: courseResponse.data.success ? 
-                courseResponse.data.course.price : payment.amount
-            };
-          } catch (error) {
-            return payment; // Return payment without course details if error
-          }
-        })
+    if (searchTerm) {
+      filtered = filtered.filter(payment => 
+        payment.student_email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        payment.course_track?.toLowerCase().includes(searchTerm.toLowerCase())
       );
-      
-      setPayments(paymentsWithCourseDetails);
     }
-  } catch (error) {
-    console.error('Error fetching student records:', error);
-    alert('Error loading student records');
-  } finally {
-    setLoading(false);
-  }
-};
+    
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter(payment => payment.status === statusFilter);
+    }
+    
+    setFilteredPayments(filtered);
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter, payments]);
 
-  const filteredPayments = payments.filter(payment => {
-    const matchesSearch = 
-      payment.student_email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      payment.course_track.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesStatus = statusFilter === 'all' || payment.status === statusFilter;
-    
-    return matchesSearch && matchesStatus;
-  });
+  const fetchStudentRecords = async () => {
+    try {
+      setLoading(true);
+      const response = await axios.get('https://edulearnbackend-ffiv.onrender.com/api/teacher/student-records');
+      
+      if (response.data.success) {
+        const paymentsWithDetails = await Promise.all(
+          response.data.payments.map(async (payment) => {
+            try {
+              const courseResponse = await axios.get(
+                `https://edulearnbackend-ffiv.onrender.com/api/courses?title=${encodeURIComponent(payment.course_track)}`
+              );
+              return {
+                ...payment,
+                course_details: courseResponse.data.success ? courseResponse.data.course : null,
+                actual_amount: courseResponse.data.success ? courseResponse.data.course.price : payment.amount
+              };
+            } catch (error) {
+              return payment;
+            }
+          })
+        );
+        
+        setPayments(paymentsWithDetails);
+        
+        // Calculate stats
+        const pending = paymentsWithDetails.filter(p => p.status === 'pending').length;
+        const verified = paymentsWithDetails.filter(p => p.status === 'verified').length;
+        const rejected = paymentsWithDetails.filter(p => p.status === 'rejected').length;
+        const totalRevenue = paymentsWithDetails
+          .filter(p => p.status === 'verified')
+          .reduce((sum, p) => sum + (p.actual_amount || p.amount), 0);
+        
+        setStats({
+          total: paymentsWithDetails.length,
+          pending,
+          verified,
+          rejected,
+          totalRevenue
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching student records:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleStatusUpdate = async (paymentId, newStatus) => {
     try {
@@ -82,15 +119,12 @@ const StudentRecords = () => {
       });
 
       if (response.data.success) {
-        // Update local state
         setPayments(prev => prev.map(p => 
           p._id === paymentId ? { ...p, status: newStatus } : p
         ));
-        alert(`Payment ${newStatus} successfully`);
       }
     } catch (error) {
       console.error('Error updating status:', error);
-      alert('Error updating payment status');
     }
   };
 
@@ -108,276 +142,334 @@ const StudentRecords = () => {
   const getStatusColor = (status) => {
     switch (status) {
       case 'verified':
-        return 'bg-green-100 text-green-800';
+        return 'bg-green-100 text-green-800 border-green-200';
       case 'rejected':
-        return 'bg-red-100 text-red-800';
+        return 'bg-red-100 text-red-800 border-red-200';
       default:
-        return 'bg-yellow-100 text-yellow-800';
+        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+    }
+  };
+
+  const formatDate = (dateString) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric'
+    });
+  };
+
+  // Pagination
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentItems = filteredPayments.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(filteredPayments.length / itemsPerPage);
+
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: { staggerChildren: 0.05 }
+    }
+  };
+
+  const itemVariants = {
+    hidden: { y: 20, opacity: 0 },
+    visible: {
+      y: 0,
+      opacity: 1,
+      transition: { type: 'spring', stiffness: 100, damping: 12 }
     }
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="w-16 h-16 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading student records...</p>
+          <Loader2 className="w-12 h-12 text-emerald-600 animate-spin mx-auto mb-4" />
+          <p className="text-gray-600 text-lg">Loading student records...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-neutral-100 py-8">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="bg-white rounded-2xl shadow-lg shadow-white border border-gray-400 mb-8 hover:shadow-xl ">
-          <TeachersList/>
-        </div>
-        
+    <motion.div
+      initial="hidden"
+      animate="visible"
+      variants={containerVariants}
+      className="min-h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 py-8 px-4 sm:px-6 lg:px-8"
+    >
+      {/* Animated Background */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <motion.div
+          className="absolute top-20 left-10 w-72 h-72 bg-emerald-200 rounded-full mix-blend-multiply filter blur-3xl opacity-30"
+          animate={{ x: [0, 100, 0], y: [0, -100, 0] }}
+          transition={{ duration: 20, repeat: Infinity }}
+        />
+        <motion.div
+          className="absolute bottom-20 right-10 w-72 h-72 bg-teal-200 rounded-full mix-blend-multiply filter blur-3xl opacity-30"
+          animate={{ x: [0, -100, 0], y: [0, 100, 0] }}
+          transition={{ duration: 25, repeat: Infinity }}
+        />
+      </div>
+
+      <div className="relative z-10 max-w-7xl mx-auto">
+        {/* Teachers List Section */}
+        <motion.div variants={itemVariants} className="mb-8">
+          <TeachersList showHeader={true} headerTitle="Teaching Staff" itemsPerPage={4} />
+        </motion.div>
+
+        {/* Admin Queries Section */}
+        <motion.div variants={itemVariants} className="mb-8">
+          <AdminQueries />
+        </motion.div>
+
         {/* Header */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 mb-8">
+        <motion.div variants={itemVariants} className="bg-white/60 backdrop-blur-md rounded-2xl shadow-xl p-6 mb-8 border border-white/50">
           <div className="flex items-center justify-between">
-            <AdminQueries/>
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">Student Records</h1>
+              <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">
+                Payment Verification
+              </h1>
               <p className="text-gray-600 mt-2">
-                View and manage student payment verifications
+                Review and manage student payment submissions
               </p>
             </div>
-            <div className="bg-indigo-100 p-3 rounded-xl">
-              <User className="h-8 w-8 text-indigo-600" />
+            <div className="bg-gradient-to-r from-emerald-500 to-teal-500 p-3 rounded-2xl shadow-lg">
+              <CreditCard className="w-8 h-8 text-white" />
             </div>
           </div>
-        </div>
+        </motion.div>
 
-        {/* Filters and Search */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 mb-6">
-          <div className="flex flex-col md:flex-row gap-4 md:items-center md:justify-between">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Search by email or course..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
-                />
+        {/* Stats Cards */}
+        <motion.div variants={itemVariants} className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
+          {[
+            { label: 'Total', value: stats.total, icon: FileText, color: 'from-gray-500 to-gray-600' },
+            { label: 'Pending', value: stats.pending, icon: Clock, color: 'from-yellow-500 to-yellow-600' },
+            { label: 'Verified', value: stats.verified, icon: CheckCircle, color: 'from-green-500 to-green-600' },
+            { label: 'Rejected', value: stats.rejected, icon: XCircle, color: 'from-red-500 to-red-600' },
+            { label: 'Revenue', value: `₹${stats.totalRevenue.toLocaleString()}`, icon: DollarSign, color: 'from-blue-500 to-blue-600' }
+          ].map((stat, idx) => (
+            <motion.div
+              key={idx}
+              whileHover={{ scale: 1.02, y: -3 }}
+              className={`bg-gradient-to-r ${stat.color} rounded-xl p-4 shadow-lg`}
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-white/80 text-xs">{stat.label}</p>
+                  <p className="text-white text-xl font-bold mt-1">{stat.value}</p>
+                </div>
+                <stat.icon className="w-8 h-8 text-white/30" />
               </div>
+            </motion.div>
+          ))}
+        </motion.div>
+
+        {/* Filters */}
+        <motion.div variants={itemVariants} className="bg-white/60 backdrop-blur-md rounded-2xl p-4 mb-6 shadow-lg">
+          <div className="flex flex-col md:flex-row gap-4">
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+              <input
+                type="text"
+                placeholder="Search by email or course..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 bg-white/80 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 transition-all"
+              />
             </div>
             
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center gap-3">
               <Filter className="h-5 w-5 text-gray-500" />
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+                className="px-4 py-3 rounded-xl border border-gray-200 bg-white/80 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 transition-all"
               >
                 <option value="all">All Status</option>
                 <option value="pending">Pending</option>
                 <option value="verified">Verified</option>
                 <option value="rejected">Rejected</option>
               </select>
+              
+              <motion.button
+                whileHover={{ rotate: 180 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={fetchStudentRecords}
+                className="p-3 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-colors"
+              >
+                <RefreshCw size={20} />
+              </motion.button>
             </div>
           </div>
-        </div>
+        </motion.div>
 
-        {/* Student Records Table */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+        {/* Payments Table */}
+        <motion.div variants={itemVariants} className="bg-white/60 backdrop-blur-md rounded-2xl shadow-xl overflow-hidden">
           {filteredPayments.length === 0 ? (
             <div className="text-center py-12">
-              <User className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No records found</h3>
+              <FileText className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-700 mb-2">No records found</h3>
               <p className="text-gray-500">
-                {payments.length === 0 
-                  ? "No student payments yet" 
-                  : "No payments match your search criteria"}
+                {payments.length === 0 ? "No student payments yet" : "No payments match your search criteria"}
               </p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 border-b border-gray-200">
-                  <tr>
-                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Student & Course
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Payment Details
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Status
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {filteredPayments.map((payment) => (
-                    <tr key={payment._id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-6 py-4">
-                        <div className="flex items-center space-x-3">
-                          <div className="bg-indigo-100 p-2 rounded-lg">
-                            <User className="h-6 w-6 text-indigo-600" />
-                          </div>
-                          <div>
-                            <div className="flex items-center space-x-2">
-                              <Mail className="h-4 w-4 text-gray-400" />
-                              <p className="text-sm font-medium text-gray-900">
-                                {payment.student_email}
-                              </p>
-                            </div>
-                            <div className="flex items-center space-x-2 mt-1">
-                              <BookOpen className="h-4 w-4 text-gray-400" />
-                              <p className="text-sm text-gray-600">
-                                    Course: {payment.course_track}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-                      
-                      <td className="px-6 py-4">
-                        <div className="text-sm text-gray-900">
-                           ₹{payment.actual_amount || payment.amount}
-                        </div>
-                        <div className="flex items-center space-x-1 mt-1">
-                          <Calendar className="h-4 w-4 text-gray-400" />
-                          <p className="text-xs text-gray-500">
-                            {new Date(payment.payment_date).toLocaleDateString()}
-                          </p>
-                        </div>
-                      </td>
-                      
-                      <td className="px-6 py-4">
-                        <div className="flex items-center space-x-2">
-                          {getStatusIcon(payment.status)}
-                          <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(payment.status)}`}>
-                            {payment.status.charAt(0).toUpperCase() + payment.status.slice(1)}
-                          </span>
-                        </div>
-                      </td>
-                      
-
-<td className="px-6 py-4">
-  <div className="flex items-center space-x-2">
-    {/* View Screenshot Button */}
-    <button
-      onClick={() => {
-        if (payment.screenshot_path) {
-          window.open(payment.screenshot_path, '_blank');
-        } else {
-          alert('No screenshot available for this payment');
-        }
-      }}
-      className="flex items-center space-x-1 px-3 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors text-sm"
-    >
-      <Eye className="h-4 w-4" />
-      <span>View SS</span>
-    </button>
-    
-    {/* Download Screenshot */}
-    {payment.screenshot_path && (
-      <a
-        href={payment.screenshot_path}
-        download
-        target="_blank"
-        rel="noopener noreferrer"
-        className="flex items-center space-x-1 px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm"
-      >
-        <Download className="h-4 w-4" />
-        <span>Download</span>
-      </a>
-    )}
-    
-    {/* Status Actions */}
-    {payment.status === 'pending' && (
-      <div className="flex space-x-1">
-        <button
-          onClick={() => handleStatusUpdate(payment._id, 'verified')}
-          className="px-3 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors text-sm"
-        >
-          Verify
-        </button>
-        <button
-          onClick={() => handleStatusUpdate(payment._id, 'rejected')}
-          className="px-3 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors text-sm"
-        >
-          Reject
-        </button>
-      </div>
-    )}
-  </div>
-</td>
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white">
+                    <tr>
+                      <th className="px-6 py-4 text-left text-sm font-semibold">Student & Course</th>
+                      <th className="px-6 py-4 text-left text-sm font-semibold">Payment Details</th>
+                      <th className="px-6 py-4 text-left text-sm font-semibold">Status</th>
+                      <th className="px-6 py-4 text-left text-sm font-semibold">Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    <AnimatePresence>
+                      {currentItems.map((payment, index) => (
+                        <motion.tr
+                          key={payment._id}
+                          initial={{ opacity: 0, x: -20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          exit={{ opacity: 0, x: 20 }}
+                          transition={{ delay: index * 0.05 }}
+                          className="hover:bg-white/50 transition-colors"
+                        >
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-3">
+                              <div className="bg-gradient-to-br from-emerald-500 to-teal-500 p-2 rounded-xl">
+                                <User className="h-6 w-6 text-white" />
+                              </div>
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <Mail className="h-3 w-3 text-gray-400" />
+                                  <p className="text-sm font-medium text-gray-800">
+                                    {payment.student_email}
+                                  </p>
+                                </div>
+                                <div className="flex items-center gap-2 mt-1">
+                                  <BookOpen className="h-3 w-3 text-gray-400" />
+                                  <p className="text-sm text-gray-600">
+                                    {payment.course_track}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                          
+                          <td className="px-6 py-4">
+                            <div className="text-lg font-bold text-emerald-600">
+                              ₹{(payment.actual_amount || payment.amount).toLocaleString()}
+                            </div>
+                            <div className="flex items-center gap-1 mt-1">
+                              <Calendar className="h-3 w-3 text-gray-400" />
+                              <p className="text-xs text-gray-500">
+                                {formatDate(payment.payment_date)}
+                              </p>
+                            </div>
+                          </td>
+                          
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-2">
+                              {getStatusIcon(payment.status)}
+                              <span className={`px-2 py-1 text-xs font-medium rounded-full border ${getStatusColor(payment.status)}`}>
+                                {payment.status.charAt(0).toUpperCase() + payment.status.slice(1)}
+                              </span>
+                            </div>
+                          </td>
+
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <motion.button
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
+                                onClick={() => {
+                                  if (payment.screenshot_path) {
+                                    window.open(payment.screenshot_path, '_blank');
+                                  }
+                                }}
+                                className="flex items-center gap-1 px-3 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors text-sm"
+                              >
+                                <Eye className="h-4 w-4" />
+                                <span>View</span>
+                              </motion.button>
+                              
+                              {payment.screenshot_path && (
+                                <a
+                                  href={payment.screenshot_path}
+                                  download
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex items-center gap-1 px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm"
+                                >
+                                  <Download className="h-4 w-4" />
+                                  <span>Download</span>
+                                </a>
+                              )}
+                              
+                              {payment.status === 'pending' && (
+                                <div className="flex gap-1">
+                                  <motion.button
+                                    whileHover={{ scale: 1.05 }}
+                                    whileTap={{ scale: 0.95 }}
+                                    onClick={() => handleStatusUpdate(payment._id, 'verified')}
+                                    className="px-3 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors text-sm"
+                                  >
+                                    Verify
+                                  </motion.button>
+                                  <motion.button
+                                    whileHover={{ scale: 1.05 }}
+                                    whileTap={{ scale: 0.95 }}
+                                    onClick={() => handleStatusUpdate(payment._id, 'rejected')}
+                                    className="px-3 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors text-sm"
+                                  >
+                                    Reject
+                                  </motion.button>
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                        </motion.tr>
+                      ))}
+                    </AnimatePresence>
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="flex justify-center items-center gap-3 p-4 border-t border-gray-100">
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                    disabled={currentPage === 1}
+                    className="p-2 rounded-lg bg-white shadow-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-emerald-50 transition-colors"
+                  >
+                    <ChevronLeft className="w-5 h-5" />
+                  </motion.button>
+                  <span className="px-4 py-2 bg-emerald-600 text-white rounded-lg">
+                    {currentPage} / {totalPages}
+                  </span>
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                    disabled={currentPage === totalPages}
+                    className="p-2 rounded-lg bg-white shadow-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-emerald-50 transition-colors"
+                  >
+                    <ChevronRight className="w-5 h-5" />
+                  </motion.button>
+                </div>
+              )}
+            </>
           )}
-        </div>
-
-        
-
-        {/* Stats Summary */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mt-6">
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-2xl font-bold text-gray-900">{payments.length}</p>
-                <p className="text-gray-600 text-sm">Total Payments</p>
-              </div>
-              <div className="bg-blue-100 p-3 rounded-lg">
-                <User className="h-6 w-6 text-blue-600" />
-              </div>
-            </div>
-          </div>
-          
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-2xl font-bold text-gray-900">
-                  {payments.filter(p => p.status === 'pending').length}
-                </p>
-                <p className="text-gray-600 text-sm">Pending</p>
-              </div>
-              <div className="bg-yellow-100 p-3 rounded-lg">
-                <Clock className="h-6 w-6 text-yellow-600" />
-              </div>
-            </div>
-          </div>
-          
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-2xl font-bold text-gray-900">
-                  {payments.filter(p => p.status === 'verified').length}
-                </p>
-                <p className="text-gray-600 text-sm">Verified</p>
-              </div>
-              <div className="bg-green-100 p-3 rounded-lg">
-                <CheckCircle className="h-6 w-6 text-green-600" />
-              </div>
-            </div>
-          </div>
-          
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-2xl font-bold text-gray-900">
-                  {payments.filter(p => p.status === 'rejected').length}
-                </p>
-                <p className="text-gray-600 text-sm">Rejected</p>
-              </div>
-              <div className="bg-red-100 p-3 rounded-lg">
-                <XCircle className="h-6 w-6 text-red-600" />
-              </div>
-            </div>
-          </div>
-        </div>
+        </motion.div>
       </div>
-    </div>
+    </motion.div>
   );
 };
 
