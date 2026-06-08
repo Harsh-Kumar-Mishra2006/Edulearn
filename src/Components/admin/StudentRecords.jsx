@@ -259,7 +259,6 @@ const StudentRecords = () => {
                         </div>
                       </td>
                       
-                      // In the table actions section, update the View and Download buttons:
 
 <td className="px-6 py-4">
   <div className="flex items-center space-x-2">
