@@ -22,7 +22,7 @@ import {
   CreditCard
 } from 'lucide-react';
 import axios from 'axios';
-import AdminQueries from './adminquerries/AdminQueries';
+import AdminQueries from './adminquerries/adminQuerries';
 import TeachersList from './TeacherList';
 
 const StudentRecords = () => {
