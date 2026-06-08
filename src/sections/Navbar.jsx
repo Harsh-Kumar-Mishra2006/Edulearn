@@ -58,7 +58,7 @@ const Navbar = () => {
         { name: 'User Management', href: '/users', current: false },
         { name: 'Analytics', href: '/analytics', current: false },
         { name: 'Student Records', href: '/records', current: false },
-        { name: 'Settings', href: '/admin-settings', current: false },
+        { name: 'Members', href: '/members', current: false },
       ];
     }
 
