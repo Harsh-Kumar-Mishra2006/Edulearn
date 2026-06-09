@@ -5,20 +5,17 @@ import {
   Users, 
   GraduationCap, 
   Search, 
-  Filter,
   Mail,
   Phone,
   Calendar,
   User,
-  BookOpen,
   AlertCircle,
   Loader2,
   ChevronLeft,
   ChevronRight,
-  Download,
   Eye,
   Award,
-  MapPin
+  RefreshCw
 } from 'lucide-react';
 import axios from 'axios';
 
@@ -26,6 +23,7 @@ const StudentList = () => {
   const [students, setStudents] = useState([]);
   const [filteredStudents, setFilteredStudents] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -56,33 +54,98 @@ const StudentList = () => {
 
   const fetchAllStudents = async () => {
     setLoading(true);
+    setError(null);
+    
     try {
       const token = localStorage.getItem('token');
       
-      // Fetch from Auth collection (all users with role 'student')
-      const response = await axios.get('https://edulearnbackend-ffiv.onrender.com/api/auth/all-students', {
-        headers: {
-          'Authorization': `Bearer ${token}`
+      if (!token) {
+        setError('No authentication token found. Please login again.');
+        setLoading(false);
+        return;
+      }
+      
+      console.log('🔵 Fetching students with token:', token.substring(0, 50) + '...');
+      
+      // Try multiple endpoints
+      let response;
+      let success = false;
+      
+      // Try endpoint 1: /api/auth/all-students
+      try {
+        console.log('🔵 Trying endpoint: /api/auth/all-students');
+        response = await axios.get('https://edulearnbackend-ffiv.onrender.com/api/auth/all-students', {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (response.data.success) {
+          success = true;
+          console.log('✅ Success from /api/auth/all-students');
         }
+      } catch (err) {
+        console.log('❌ /api/auth/all-students failed:', err.response?.status);
+      }
+      
+      // Try endpoint 2: /api/admin/students
+      if (!success) {
+        try {
+          console.log('🔵 Trying endpoint: /api/admin/students');
+          response = await axios.get('https://edulearnbackend-ffiv.onrender.com/api/admin/students', {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          });
+          
+          if (response.data.success) {
+            success = true;
+            console.log('✅ Success from /api/admin/students');
+          }
+        } catch (err) {
+          console.log('❌ /api/admin/students failed:', err.response?.status);
+        }
+      }
+      
+      if (!success) {
+        throw new Error('Unable to fetch students from any endpoint');
+      }
+      
+      console.log('🔵 Response data:', response.data);
+      
+      // Extract student data from response
+      let studentData = [];
+      if (response.data.students) {
+        studentData = response.data.students;
+      } else if (response.data.data) {
+        studentData = response.data.data;
+      } else if (Array.isArray(response.data)) {
+        studentData = response.data;
+      }
+      
+      console.log(`🔵 Found ${studentData.length} students`);
+      
+      setStudents(studentData);
+      setFilteredStudents(studentData);
+      
+      // Calculate stats
+      const now = new Date();
+      const monthAgo = new Date(now.setMonth(now.getMonth() - 1));
+      
+      setStats({
+        total: studentData.length,
+        active: studentData.filter(s => s.isActive !== false).length,
+        newThisMonth: studentData.filter(s => {
+          if (!s.createdAt) return false;
+          return new Date(s.createdAt) >= monthAgo;
+        }).length
       });
       
-      if (response.data.success) {
-        const studentData = response.data.students;
-        setStudents(studentData);
-        setFilteredStudents(studentData);
-        
-        // Calculate stats
-        const now = new Date();
-        const monthAgo = new Date(now.setMonth(now.getMonth() - 1));
-        
-        setStats({
-          total: studentData.length,
-          active: studentData.filter(s => s.isActive !== false).length,
-          newThisMonth: studentData.filter(s => new Date(s.createdAt) >= monthAgo).length
-        });
-      }
     } catch (error) {
-      console.error('Error fetching students:', error);
+      console.error('❌ Error fetching students:', error);
+      setError(error.response?.data?.error || error.message || 'Failed to fetch students');
     } finally {
       setLoading(false);
     }
@@ -90,12 +153,16 @@ const StudentList = () => {
 
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
-    const date = new Date(dateString);
-    return new Intl.DateTimeFormat('en-US', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric'
-    }).format(date);
+    try {
+      const date = new Date(dateString);
+      return new Intl.DateTimeFormat('en-US', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric'
+      }).format(date);
+    } catch (e) {
+      return 'Invalid date';
+    }
   };
 
   // Pagination
@@ -132,6 +199,25 @@ const StudentList = () => {
     );
   }
 
+  if (error) {
+    return (
+      <div className="min-h-[400px] bg-gradient-to-br from-indigo-50 via-white to-purple-50 rounded-2xl flex items-center justify-center">
+        <div className="text-center p-8">
+          <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+          <p className="text-red-600 text-lg mb-2">Error Loading Students</p>
+          <p className="text-gray-600 mb-4">{error}</p>
+          <button
+            onClick={fetchAllStudents}
+            className="px-6 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors flex items-center gap-2 mx-auto"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <motion.div
       initial="hidden"
@@ -160,8 +246,16 @@ const StudentList = () => {
             </h2>
             <p className="text-gray-500 mt-1">View and manage all enrolled students</p>
           </div>
-          <div className="bg-gradient-to-r from-indigo-500 to-purple-500 p-3 rounded-2xl shadow-lg">
-            <Users className="w-8 h-8 text-white" />
+          <div className="flex gap-3">
+            <button
+              onClick={fetchAllStudents}
+              className="bg-gradient-to-r from-indigo-500 to-purple-500 p-3 rounded-2xl shadow-lg hover:shadow-xl transition-all"
+            >
+              <RefreshCw className="w-5 h-5 text-white" />
+            </button>
+            <div className="bg-gradient-to-r from-indigo-500 to-purple-500 p-3 rounded-2xl shadow-lg">
+              <Users className="w-6 h-6 text-white" />
+            </div>
           </div>
         </div>
       </motion.div>
@@ -215,7 +309,7 @@ const StudentList = () => {
           <motion.div variants={itemVariants} className="relative z-10 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {currentItems.map((student, index) => (
               <motion.div
-                key={student._id}
+                key={student._id || index}
                 variants={itemVariants}
                 whileHover={{ y: -8, scale: 1.02 }}
                 className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg overflow-hidden hover:shadow-2xl transition-all duration-300 cursor-pointer border border-gray-100"
@@ -372,14 +466,14 @@ const StudentList = () => {
                   </div>
                   <div className="bg-gray-50 rounded-xl p-4">
                     <p className="text-gray-500 text-sm mb-1">Student ID</p>
-                    <p className="text-gray-800 font-medium text-sm">
+                    <p className="text-gray-800 font-medium text-sm font-mono">
                       {selectedStudent._id?.slice(-8) || 'N/A'}
                     </p>
                   </div>
                 </div>
 
                 {/* Profile Details if available */}
-                {selectedStudent.profile && (
+                {selectedStudent.profile && Object.keys(selectedStudent.profile).length > 0 && (
                   <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl p-4">
                     <h4 className="font-semibold text-gray-700 mb-3 flex items-center gap-2">
                       <Award className="w-4 h-4 text-indigo-600" />
@@ -387,13 +481,16 @@ const StudentList = () => {
                     </h4>
                     <div className="grid grid-cols-2 gap-3 text-sm">
                       {selectedStudent.profile.age && (
-                        <p><span className="text-gray-500">Age:</span> {selectedStudent.profile.age}</p>
+                        <div><span className="text-gray-500">Age:</span> {selectedStudent.profile.age}</div>
                       )}
                       {selectedStudent.profile.gender && (
-                        <p><span className="text-gray-500">Gender:</span> {selectedStudent.profile.gender}</p>
+                        <div><span className="text-gray-500">Gender:</span> {selectedStudent.profile.gender}</div>
                       )}
                       {selectedStudent.profile.dob && (
-                        <p><span className="text-gray-500">Date of Birth:</span> {selectedStudent.profile.dob}</p>
+                        <div><span className="text-gray-500">Date of Birth:</span> {selectedStudent.profile.dob}</div>
+                      )}
+                      {selectedStudent.profile.address && (
+                        <div className="col-span-2"><span className="text-gray-500">Address:</span> {selectedStudent.profile.address}</div>
                       )}
                     </div>
                   </div>
