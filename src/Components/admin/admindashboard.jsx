@@ -16,6 +16,7 @@ import {
   CheckCircle,
   X,
   BookText,
+  AlertCircle,
   PlusCircle,
   ChevronLeft,
   ChevronRight
