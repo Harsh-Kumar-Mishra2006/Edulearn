@@ -90,9 +90,6 @@ const StudentList = () => {
       if (response.status === 401) {
         localStorage.removeItem('token');
         setError('Session expired. Please login again.');
-        setTimeout(() => {
-          window.location.href = '/login';
-        }, 2000);
         setLoading(false);
         return;
       }
