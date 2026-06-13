@@ -17,7 +17,6 @@ import {
   Award,
   RefreshCw,
   Lock,
-  EyeOff,
   Copy,
   CheckCircle,
   Shield,
@@ -35,7 +34,6 @@ const StudentList = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [showPasswords, setShowPasswords] = useState({});
   const [copiedField, setCopiedField] = useState(null);
   const [stats, setStats] = useState({
     total: 0,
@@ -78,7 +76,6 @@ const StudentList = () => {
       
       console.log('🔵 Fetching students with token');
       
-      // Try multiple endpoints
       let response;
       let success = false;
       
@@ -126,7 +123,6 @@ const StudentList = () => {
       
       console.log('🔵 Response data:', response.data);
       
-      // Extract student data from response
       let studentData = [];
       if (response.data.students) {
         studentData = response.data.students;
@@ -140,8 +136,8 @@ const StudentList = () => {
       const enhancedStudents = studentData.map(student => ({
         ...student,
         username: student.username || student.email?.split('@')[0] || 'student',
-        displayPassword: '••••••••', // Placeholder - actual password would come from secure endpoint
-        age: student.profile?.age || 'N/A',
+        displayPassword: student.password || 'Student@123',
+        age: student.profile?.age || student.age || 'N/A',
         gender: student.profile?.gender || student.gender || 'N/A',
         dob: student.profile?.dob || student.profile?.dateOfBirth || student.dob || 'N/A'
       }));
@@ -151,7 +147,6 @@ const StudentList = () => {
       setStudents(enhancedStudents);
       setFilteredStudents(enhancedStudents);
       
-      // Calculate stats
       const now = new Date();
       const monthAgo = new Date(now.setMonth(now.getMonth() - 1));
       
@@ -170,13 +165,6 @@ const StudentList = () => {
     } finally {
       setLoading(false);
     }
-  };
-
-  const togglePasswordVisibility = async (studentId) => {
-    setShowPasswords(prev => ({
-      ...prev,
-      [studentId]: !prev[studentId]
-    }));
   };
 
   const handleCopyToClipboard = async (text, field, studentId) => {
@@ -201,12 +189,6 @@ const StudentList = () => {
     } catch (e) {
       return 'Invalid date';
     }
-  };
-
-  const getGenderIcon = (gender) => {
-    if (gender === 'Male') return '♂';
-    if (gender === 'Female') return '♀';
-    return '⚥';
   };
 
   // Pagination
@@ -379,6 +361,15 @@ const StudentList = () => {
                   <div className="flex items-center gap-2 text-gray-500 text-sm mb-2">
                     <User className="w-3 h-3 text-emerald-500" />
                     <span className="font-mono text-xs bg-gray-100 px-2 py-0.5 rounded">{student.username}</span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleCopyToClipboard(student.username, 'username', student._id);
+                      }}
+                      className="ml-auto text-gray-400 hover:text-emerald-600 transition-colors"
+                    >
+                      {copiedField === `${student._id}-username` ? <CheckCircle className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3" />}
+                    </button>
                   </div>
                   
                   {/* Email with copy */}
@@ -402,48 +393,32 @@ const StudentList = () => {
                     <span>{student.phone || 'N/A'}</span>
                   </div>
 
-                  {/* Password Section */}
+                  {/* Password Section - Directly visible */}
                   <div className="mb-3 p-2 bg-gradient-to-r from-emerald-50 to-teal-50 rounded-lg">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <Lock className="w-3 h-3 text-teal-600" />
-                        <span className="text-gray-700 text-xs font-medium">Password:</span>
+                        <Lock className="w-4 h-4 text-teal-600" />
+                        <span className="text-gray-700 text-sm font-medium">Password:</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <input
-                          type={showPasswords[student._id] ? "text" : "password"}
-                          readOnly
-                          value={student.displayPassword || '••••••••'}
-                          className="bg-white border border-teal-200 rounded px-2 py-1 text-gray-700 text-xs w-24 font-mono focus:outline-none"
-                          onClick={(e) => e.stopPropagation()}
-                        />
+                        <code className="bg-white border border-teal-200 rounded-lg px-3 py-1.5 text-gray-800 text-sm font-mono">
+                          {student.displayPassword || 'Student@123'}
+                        </code>
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            togglePasswordVisibility(student._id);
+                            handleCopyToClipboard(student.displayPassword || 'Student@123', 'password', student._id);
                           }}
-                          className="text-gray-500 hover:text-teal-600 transition-colors"
-                          title={showPasswords[student._id] ? "Hide password" : "Show password"}
-                        >
-                          {showPasswords[student._id] ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            const passwordToCopy = student.password || student.displayPassword || 'Not set';
-                            handleCopyToClipboard(passwordToCopy, 'password', student._id);
-                          }}
-                          className="text-gray-500 hover:text-teal-600 transition-colors"
+                          className="text-gray-500 hover:text-teal-600 transition-colors p-1.5"
                           title="Copy password"
                         >
                           {copiedField === `${student._id}-password` ? 
-                            <CheckCircle className="w-3 h-3 text-green-500" /> : 
-                            <Copy className="w-3 h-3" />
+                            <CheckCircle className="w-4 h-4 text-green-500" /> : 
+                            <Copy className="w-4 h-4" />
                           }
                         </button>
                       </div>
                     </div>
-                    <p className="text-teal-500 text-xs italic mt-1">Student's login credentials</p>
                   </div>
                   
                   {/* Age, Gender, DOB */}
@@ -609,21 +584,12 @@ const StudentList = () => {
                       Password
                     </p>
                     <div className="flex items-center gap-2">
-                      <input
-                        type={showPasswords[selectedStudent._id] ? "text" : "password"}
-                        readOnly
-                        value={selectedStudent.displayPassword || '••••••••'}
-                        className="bg-white border border-gray-200 rounded px-2 py-1 text-gray-700 text-sm font-mono flex-1 focus:outline-none"
-                      />
+                      <code className="bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-gray-800 text-sm font-mono flex-1">
+                        {selectedStudent.displayPassword || 'Student@123'}
+                      </code>
                       <button
-                        onClick={() => togglePasswordVisibility(selectedStudent._id)}
-                        className="p-1 text-gray-500 hover:text-emerald-600"
-                      >
-                        {showPasswords[selectedStudent._id] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      </button>
-                      <button
-                        onClick={() => handleCopyToClipboard(selectedStudent.displayPassword || 'Not set', 'modal-password', selectedStudent._id)}
-                        className="p-1 text-gray-500 hover:text-emerald-600"
+                        onClick={() => handleCopyToClipboard(selectedStudent.displayPassword || 'Student@123', 'modal-password', selectedStudent._id)}
+                        className="p-1.5 text-gray-500 hover:text-emerald-600"
                       >
                         {copiedField === `${selectedStudent._id}-modal-password` ? <CheckCircle className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
                       </button>
@@ -671,6 +637,12 @@ const StudentList = () => {
                   <p className="text-gray-800 font-medium text-sm font-mono break-all">
                     {selectedStudent._id || 'N/A'}
                   </p>
+                  <button
+                    onClick={() => handleCopyToClipboard(selectedStudent._id || 'N/A', 'student-id', selectedStudent._id)}
+                    className="mt-2 text-xs text-emerald-600 hover:text-emerald-700"
+                  >
+                    {copiedField === `${selectedStudent._id}-student-id` ? 'Copied!' : 'Copy ID'}
+                  </button>
                 </div>
               </div>
             </motion.div>

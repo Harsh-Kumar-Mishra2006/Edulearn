@@ -14,8 +14,6 @@ import {
   AlertCircle,
   Loader2,
   Lock,
-  Eye,
-  EyeOff,
   Copy,
   CheckCircle,
   User,
@@ -47,7 +45,6 @@ const TeachersList = ({
   const [currentPage, setCurrentPage] = useState(1);
   const [deleteConfirmId, setDeleteConfirmId] = useState(null);
   const [totalTeachers, setTotalTeachers] = useState(0);
-  const [showPasswords, setShowPasswords] = useState({});
   const [copiedField, setCopiedField] = useState(null);
   const [expandedTeacher, setExpandedTeacher] = useState(null);
 
@@ -119,7 +116,7 @@ const TeachersList = ({
             return {
               ...teacher,
               username: authData.data?.username || teacher.email.split('@')[0],
-              authPassword: authData.data?.tempPassword || '••••••••'
+              authPassword: authData.data?.tempPassword || 'Teacher@123'
             };
           }
         } catch (err) {
@@ -128,7 +125,7 @@ const TeachersList = ({
         return {
           ...teacher,
           username: teacher.email?.split('@')[0] || 'teacher',
-          authPassword: '••••••••'
+          authPassword: 'Teacher@123'
         };
       }));
       
@@ -147,13 +144,6 @@ const TeachersList = ({
     } finally {
       setLoading(false);
     }
-  };
-
-  const togglePasswordVisibility = async (teacherId) => {
-    setShowPasswords(prev => ({
-      ...prev,
-      [teacherId]: !prev[teacherId]
-    }));
   };
 
   const handleCopyToClipboard = async (text, field, teacherId) => {
@@ -361,6 +351,15 @@ const TeachersList = ({
                     <div className="flex items-center gap-2 text-gray-600 text-sm">
                       <User className="w-4 h-4 text-indigo-500" />
                       <span className="font-mono text-xs bg-gray-100 px-2 py-1 rounded">{teacher.username || teacher.email?.split('@')[0]}</span>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleCopyToClipboard(teacher.username || teacher.email?.split('@')[0], 'username', teacher._id);
+                        }}
+                        className="ml-auto text-gray-400 hover:text-indigo-600 transition-colors"
+                      >
+                        {copiedField === `${teacher._id}-username` ? <CheckCircle className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3" />}
+                      </button>
                     </div>
                     <div className="flex items-center gap-2 text-gray-600 text-sm">
                       <Mail className="w-4 h-4 text-indigo-500" />
@@ -377,49 +376,33 @@ const TeachersList = ({
                     </div>
                   </div>
 
-                  {/* Password Section */}
+                  {/* Password Section - Directly visible */}
                   {showPasswordColumn && (
                     <div className="mt-3 p-3 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl">
-                      <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <Lock className="w-3 h-3 text-purple-600" />
-                          <span className="text-gray-700 text-xs font-medium">Password:</span>
+                          <Lock className="w-4 h-4 text-purple-600" />
+                          <span className="text-gray-700 text-sm font-medium">Password:</span>
                         </div>
                         <div className="flex items-center gap-2">
-                          <input
-                            type={showPasswords[teacher._id] ? "text" : "password"}
-                            readOnly
-                            value={teacher.authPassword || '••••••••'}
-                            className="bg-white border border-purple-200 rounded-lg px-2 py-1 text-gray-700 text-xs w-28 font-mono focus:outline-none"
-                            onClick={(e) => e.stopPropagation()}
-                          />
+                          <code className="bg-white border border-purple-200 rounded-lg px-3 py-1.5 text-gray-800 text-sm font-mono">
+                            {teacher.authPassword || 'Teacher@123'}
+                          </code>
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              togglePasswordVisibility(teacher._id);
+                              handleCopyToClipboard(teacher.authPassword || 'Teacher@123', 'password', teacher._id);
                             }}
-                            className="text-gray-500 hover:text-purple-600 transition-colors"
-                            title={showPasswords[teacher._id] ? "Hide password" : "Show password"}
-                          >
-                            {showPasswords[teacher._id] ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              const passwordToCopy = teacher.authPassword || 'Password not set';
-                              handleCopyToClipboard(passwordToCopy, 'password', teacher._id);
-                            }}
-                            className="text-gray-500 hover:text-purple-600 transition-colors"
+                            className="text-gray-500 hover:text-purple-600 transition-colors p-1.5"
                             title="Copy password"
                           >
                             {copiedField === `${teacher._id}-password` ? 
-                              <CheckCircle className="w-3 h-3 text-green-500" /> : 
-                              <Copy className="w-3 h-3" />
+                              <CheckCircle className="w-4 h-4 text-green-500" /> : 
+                              <Copy className="w-4 h-4" />
                             }
                           </button>
                         </div>
                       </div>
-                      
                     </div>
                   )}
 
