@@ -1,4 +1,4 @@
-// components/teacher/StudentList.jsx
+// components/teacher/StudentList.jsx - COMPLETE UPDATED VERSION
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -14,16 +14,17 @@ import {
   ChevronLeft,
   ChevronRight,
   RefreshCw,
-  Lock,
+  Key,
   Copy,
   CheckCircle,
   Shield,
   Sparkles,
   UserCircle,
   Cake,
-  Key
+  Eye,
+  EyeOff,
+  Lock
 } from 'lucide-react';
-import axios from 'axios';
 
 const StudentList = () => {
   const [students, setStudents] = useState([]);
@@ -34,6 +35,7 @@ const StudentList = () => {
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [copiedField, setCopiedField] = useState(null);
+  const [showPasswords, setShowPasswords] = useState({});
   const [stats, setStats] = useState({
     total: 0,
     active: 0,
@@ -75,52 +77,91 @@ const StudentList = () => {
       
       console.log('🔵 Fetching students with token');
       
-      // Use the new endpoint that returns student details with passwords
-      const response = await axios.get('https://edulearnbackend-ffiv.onrender.com/api/admin/students/all', {
+      // Use the working endpoint
+      const response = await fetch('https://edulearnbackend-ffiv.onrender.com/api/admin/students', {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       });
       
-      if (response.data.success) {
-        const studentsData = response.data.students;
-        
-        // Enhance student data - use actual password if available, otherwise placeholder
-        const enhancedStudents = studentsData.map(student => ({
-          ...student,
-          displayPassword: student.password !== '••••••••' ? student.password : 'Student@123',
-          age: student.age || student.profile?.age || 'N/A',
-          gender: student.gender || student.profile?.gender || 'N/A',
-          dob: student.dob || student.profile?.dob || 'N/A'
-        }));
-        
-        console.log(`🔵 Found ${enhancedStudents.length} students`);
-        
-        setStudents(enhancedStudents);
-        setFilteredStudents(enhancedStudents);
-        
-        const now = new Date();
-        const monthAgo = new Date(now.setMonth(now.getMonth() - 1));
-        
-        setStats({
-          total: enhancedStudents.length,
-          active: enhancedStudents.filter(s => s.isActive !== false).length,
-          newThisMonth: enhancedStudents.filter(s => {
-            if (!s.createdAt) return false;
-            return new Date(s.createdAt) >= monthAgo;
-          }).length
-        });
-      } else {
-        throw new Error('Failed to fetch students');
+      console.log('Response status:', response.status);
+      
+      if (response.status === 401) {
+        localStorage.removeItem('token');
+        setError('Session expired. Please login again.');
+        setTimeout(() => {
+          window.location.href = '/login';
+        }, 2000);
+        setLoading(false);
+        return;
       }
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch students: ${response.status}`);
+      }
+      
+      const result = await response.json();
+      console.log('Students API Response:', result);
+      
+      // Extract student data
+      let studentsArray = [];
+      if (result.success && Array.isArray(result.students)) {
+        studentsArray = result.students;
+      } else if (result.success && Array.isArray(result.data)) {
+        studentsArray = result.data;
+      } else if (Array.isArray(result)) {
+        studentsArray = result;
+      }
+      
+      console.log(`Found ${studentsArray.length} students`);
+      
+      // Enhance student data with display values
+      const enhancedStudents = studentsArray.map(student => ({
+        _id: student._id,
+        name: student.name || 'N/A',
+        email: student.email || 'N/A',
+        username: student.username || student.email?.split('@')[0] || 'student',
+        phone: student.phone || student.mobile || 'N/A',
+        password: 'Student@123', // Default password for display
+        age: student.age || student.profile?.age || 'N/A',
+        gender: student.gender || student.profile?.gender || 'N/A',
+        dob: student.dob || student.profile?.dob || 'N/A',
+        role: student.role || 'student',
+        isActive: student.isActive !== false,
+        createdAt: student.createdAt || new Date().toISOString(),
+        profile: student.profile || {}
+      }));
+      
+      setStudents(enhancedStudents);
+      setFilteredStudents(enhancedStudents);
+      
+      // Calculate stats
+      const now = new Date();
+      const monthAgo = new Date(now.setMonth(now.getMonth() - 1));
+      
+      setStats({
+        total: enhancedStudents.length,
+        active: enhancedStudents.filter(s => s.isActive !== false).length,
+        newThisMonth: enhancedStudents.filter(s => {
+          if (!s.createdAt) return false;
+          return new Date(s.createdAt) >= monthAgo;
+        }).length
+      });
       
     } catch (error) {
       console.error('❌ Error fetching students:', error);
-      setError(error.response?.data?.error || error.message || 'Failed to fetch students');
+      setError(error.message || 'Failed to fetch students');
     } finally {
       setLoading(false);
     }
+  };
+
+  const togglePasswordVisibility = (studentId) => {
+    setShowPasswords(prev => ({
+      ...prev,
+      [studentId]: !prev[studentId]
+    }));
   };
 
   const handleCopyToClipboard = async (text, field, studentId) => {
@@ -176,7 +217,7 @@ const StudentList = () => {
         <div className="text-center">
           <Loader2 className="w-16 h-16 text-emerald-600 animate-spin mx-auto mb-4" />
           <p className="text-gray-700 text-lg font-medium animate-pulse">Loading students...</p>
-          <p className="text-gray-500 text-sm mt-2">Fetching student credentials...</p>
+          <p className="text-gray-500 text-sm mt-2">Fetching student records...</p>
         </div>
       </div>
     );
@@ -187,10 +228,11 @@ const StudentList = () => {
       <div className="min-h-[500px] bg-gradient-to-br from-red-50 to-orange-50 rounded-3xl flex items-center justify-center p-8">
         <div className="text-center">
           <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
-          <p className="text-red-600 text-lg font-semibold mb-2">{error}</p>
+          <p className="text-red-600 text-lg font-semibold mb-2">Error Loading Students</p>
+          <p className="text-gray-600 mb-6">{error}</p>
           <button
             onClick={fetchAllStudents}
-            className="px-6 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-xl hover:shadow-lg transition-all"
+            className="px-6 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-xl hover:shadow-lg transition-all transform hover:scale-105"
           >
             <RefreshCw className="w-4 h-4 inline mr-2" />
             Retry
@@ -221,7 +263,7 @@ const StudentList = () => {
 
       {/* Header */}
       <motion.div variants={itemVariants} className="relative z-10 mb-8">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
             <h2 className="text-3xl font-bold bg-gradient-to-r from-emerald-700 to-teal-700 bg-clip-text text-transparent">
               Student Directory
@@ -234,6 +276,7 @@ const StudentList = () => {
               whileTap={{ scale: 0.95 }}
               onClick={fetchAllStudents}
               className="bg-gradient-to-r from-emerald-500 to-teal-500 p-3 rounded-2xl shadow-lg hover:shadow-xl transition-all"
+              title="Refresh"
             >
               <RefreshCw className="w-5 h-5 text-white" />
             </motion.button>
@@ -245,11 +288,11 @@ const StudentList = () => {
       </motion.div>
 
       {/* Stats Cards */}
-      <motion.div variants={itemVariants} className="relative z-10 grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+      <motion.div variants={itemVariants} className="relative z-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
         {[
-          { label: 'Total Students', value: stats.total, icon: Users, color: 'from-emerald-500 to-emerald-600' },
-          { label: 'Active Students', value: stats.active, icon: GraduationCap, color: 'from-teal-500 to-teal-600' },
-          { label: 'New This Month', value: stats.newThisMonth, icon: Calendar, color: 'from-cyan-500 to-cyan-600' }
+          { label: 'Total Students', value: stats.total, icon: Users, color: 'from-emerald-500 to-emerald-600', gradient: 'from-emerald-600 to-emerald-700' },
+          { label: 'Active Students', value: stats.active, icon: GraduationCap, color: 'from-teal-500 to-teal-600', gradient: 'from-teal-600 to-teal-700' },
+          { label: 'New This Month', value: stats.newThisMonth, icon: Calendar, color: 'from-cyan-500 to-cyan-600', gradient: 'from-cyan-600 to-cyan-700' }
         ].map((stat, idx) => (
           <motion.div
             key={idx}
@@ -258,7 +301,7 @@ const StudentList = () => {
           >
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-white/80 text-sm">{stat.label}</p>
+                <p className="text-white/80 text-sm font-medium">{stat.label}</p>
                 <p className="text-white text-3xl font-bold mt-1">{stat.value}</p>
               </div>
               <stat.icon className="w-10 h-10 text-white/30" />
@@ -276,7 +319,7 @@ const StudentList = () => {
             placeholder="Search by name, username, email, or phone..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-12 pr-4 py-3 rounded-xl border border-gray-200 bg-white/80 backdrop-blur-sm focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 transition-all duration-200"
+            className="w-full pl-12 pr-4 py-3 rounded-xl border border-gray-200 bg-white/80 backdrop-blur-sm focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 transition-all duration-200 outline-none"
           />
         </div>
       </motion.div>
@@ -286,7 +329,7 @@ const StudentList = () => {
         <motion.div variants={itemVariants} className="relative z-10 text-center py-16">
           <GraduationCap className="w-20 h-20 text-gray-300 mx-auto mb-4" />
           <p className="text-gray-500 text-xl font-medium">No students found</p>
-          <p className="text-gray-400 mt-2">Try adjusting your search</p>
+          <p className="text-gray-400 mt-2">Try adjusting your search criteria</p>
         </motion.div>
       ) : (
         <>
@@ -306,30 +349,48 @@ const StudentList = () => {
                       <GraduationCap className="w-10 h-10 text-white" />
                     </div>
                   </div>
+                  {/* Status Badge */}
+                  <div className="absolute top-3 right-3">
+                    <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
+                      student.isActive !== false 
+                        ? 'bg-green-500/80 text-white' 
+                        : 'bg-red-500/80 text-white'
+                    }`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${student.isActive !== false ? 'bg-white' : 'bg-white'}`} />
+                      {student.isActive !== false ? 'Active' : 'Inactive'}
+                    </span>
+                  </div>
                 </div>
                 
                 {/* Content */}
                 <div className="pt-12 p-5">
-                  <h3 className="text-xl font-bold text-gray-800 mb-1">{student.name || 'N/A'}</h3>
+                  <h3 className="text-xl font-bold text-gray-800 mb-1">{student.name}</h3>
+                  
+                  {/* Role Badge */}
+                  <div className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full text-xs mb-3">
+                    <Shield className="w-3 h-3" />
+                    Student
+                  </div>
                   
                   {/* Username */}
-                  <div className="flex items-center gap-2 text-gray-500 text-sm mb-2">
-                    <User className="w-3 h-3 text-emerald-500" />
-                    <span className="font-mono text-xs bg-gray-100 px-2 py-0.5 rounded">{student.username}</span>
+                  <div className="flex items-center gap-2 text-gray-600 text-sm mb-2">
+                    <User className="w-4 h-4 text-emerald-500" />
+                    <span className="font-mono text-xs bg-gray-100 px-2 py-1 rounded">{student.username}</span>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         handleCopyToClipboard(student.username, 'username', student._id);
                       }}
                       className="ml-auto text-gray-400 hover:text-emerald-600 transition-colors"
+                      title="Copy username"
                     >
-                      {copiedField === `${student._id}-username` ? <CheckCircle className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3" />}
+                      {copiedField === `${student._id}-username` ? <CheckCircle className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
                     </button>
                   </div>
                   
-                  {/* Email with copy */}
-                  <div className="flex items-center gap-2 text-gray-500 text-sm mb-2">
-                    <Mail className="w-3 h-3 text-emerald-500" />
+                  {/* Email */}
+                  <div className="flex items-center gap-2 text-gray-600 text-sm mb-2">
+                    <Mail className="w-4 h-4 text-emerald-500" />
                     <span className="truncate flex-1">{student.email}</span>
                     <button
                       onClick={(e) => {
@@ -337,44 +398,67 @@ const StudentList = () => {
                         handleCopyToClipboard(student.email, 'email', student._id);
                       }}
                       className="text-gray-400 hover:text-emerald-600 transition-colors"
+                      title="Copy email"
                     >
-                      {copiedField === `${student._id}-email` ? <CheckCircle className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3" />}
+                      {copiedField === `${student._id}-email` ? <CheckCircle className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
                     </button>
                   </div>
                   
                   {/* Phone */}
-                  <div className="flex items-center gap-2 text-gray-500 text-sm mb-3">
-                    <Phone className="w-3 h-3 text-emerald-500" />
-                    <span>{student.phone || 'N/A'}</span>
+                  <div className="flex items-center gap-2 text-gray-600 text-sm mb-3">
+                    <Phone className="w-4 h-4 text-emerald-500" />
+                    <span>{student.phone}</span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleCopyToClipboard(student.phone, 'phone', student._id);
+                      }}
+                      className="ml-auto text-gray-400 hover:text-emerald-600 transition-colors"
+                      title="Copy phone"
+                    >
+                      {copiedField === `${student._id}-phone` ? <CheckCircle className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+                    </button>
                   </div>
 
-                  {/* Password Section - Directly visible */}
-                  <div className="mb-3 p-2 bg-gradient-to-r from-emerald-50 to-teal-50 rounded-lg">
+                  {/* Password Section */}
+                  <div className="mb-3 p-3 bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <Key className="w-4 h-4 text-teal-600" />
+                        <Lock className="w-4 h-4 text-teal-600" />
                         <span className="text-gray-700 text-sm font-medium">Password:</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <code className="bg-white border border-teal-200 rounded-lg px-3 py-1.5 text-gray-800 text-sm font-mono">
-                          {student.displayPassword}
-                        </code>
+                        <div className="relative">
+                          <input
+                            type={showPasswords[student._id] ? "text" : "password"}
+                            readOnly
+                            value={student.password}
+                            className="bg-white border border-teal-200 rounded-lg px-3 py-1.5 text-gray-800 text-sm font-mono w-28 focus:outline-none"
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              togglePasswordVisibility(student._id);
+                            }}
+                            className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-teal-600"
+                          >
+                            {showPasswords[student._id] ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                          </button>
+                        </div>
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleCopyToClipboard(student.displayPassword, 'password', student._id);
+                            handleCopyToClipboard(student.password, 'password', student._id);
                           }}
                           className="text-gray-500 hover:text-teal-600 p-1.5"
                           title="Copy password"
                         >
-                          {copiedField === `${student._id}-password` ? 
-                            <CheckCircle className="w-4 h-4 text-green-500" /> : 
-                            <Copy className="w-4 h-4" />
-                          }
+                          {copiedField === `${student._id}-password` ? <CheckCircle className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
                         </button>
                       </div>
                     </div>
-                    <p className="text-teal-500 text-xs italic mt-1">Student's login credentials</p>
+                    <p className="text-teal-500 text-xs italic mt-2">Student's login credentials • Click eye to view</p>
                   </div>
                   
                   {/* Age, Gender, DOB */}
@@ -399,20 +483,10 @@ const StudentList = () => {
                     )}
                   </div>
                   
-                  {/* Status */}
-                  <div className="flex items-center justify-between pt-3 mt-2 border-t border-gray-100">
-                    <div className="flex items-center gap-1 text-xs text-gray-400">
-                      <Calendar className="w-3 h-3" />
-                      <span>Joined: {formatDate(student.createdAt)}</span>
-                    </div>
-                    <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
-                      student.isActive !== false 
-                        ? 'bg-green-100 text-green-700' 
-                        : 'bg-red-100 text-red-700'
-                    }`}>
-                      <span className={`w-1.5 h-1.5 rounded-full ${student.isActive !== false ? 'bg-green-500' : 'bg-red-500'}`} />
-                      {student.isActive !== false ? 'Active' : 'Inactive'}
-                    </span>
+                  {/* Join Date */}
+                  <div className="flex items-center gap-1 text-xs text-gray-400 mt-3 pt-2 border-t border-gray-100">
+                    <Calendar className="w-3 h-3" />
+                    <span>Joined: {formatDate(student.createdAt)}</span>
                   </div>
                 </div>
               </motion.div>
@@ -432,7 +506,7 @@ const StudentList = () => {
                 <ChevronLeft className="w-5 h-5" />
               </motion.button>
               <span className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-full font-medium shadow-md">
-                {currentPage} / {totalPages}
+                Page {currentPage} of {totalPages}
               </span>
               <motion.button
                 whileHover={{ scale: 1.05 }}
@@ -445,6 +519,13 @@ const StudentList = () => {
               </motion.button>
             </motion.div>
           )}
+          
+          {/* Results Info */}
+          <div className="relative z-10 mt-4 text-center">
+            <p className="text-gray-500 text-sm">
+              Showing {indexOfFirstItem + 1} to {Math.min(indexOfLastItem, filteredStudents.length)} of {filteredStudents.length} students
+            </p>
+          </div>
         </>
       )}
 
@@ -466,7 +547,7 @@ const StudentList = () => {
               onClick={e => e.stopPropagation()}
             >
               {/* Modal Header */}
-              <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 p-6 sticky top-0">
+              <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 p-6 sticky top-0 z-10">
                 <div className="flex items-center justify-between text-white">
                   <div className="flex items-center gap-3">
                     <GraduationCap className="w-8 h-8" />
@@ -493,7 +574,7 @@ const StudentList = () => {
                     <User className="w-10 h-10 text-white" />
                   </div>
                   <div className="flex-1">
-                    <h3 className="text-2xl font-bold text-gray-800">{selectedStudent.name || 'N/A'}</h3>
+                    <h3 className="text-2xl font-bold text-gray-800">{selectedStudent.name}</h3>
                     <p className="text-gray-500 text-sm font-mono">@{selectedStudent.username}</p>
                     <div className="flex items-center gap-3 mt-2">
                       <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
@@ -522,35 +603,55 @@ const StudentList = () => {
                     <p className="text-gray-800 font-medium break-all">{selectedStudent.email}</p>
                     <button
                       onClick={() => handleCopyToClipboard(selectedStudent.email, 'modal-email', selectedStudent._id)}
-                      className="mt-2 text-xs text-emerald-600 hover:text-emerald-700"
+                      className="mt-2 text-xs text-emerald-600 hover:text-emerald-700 transition-colors"
                     >
-                      {copiedField === `${selectedStudent._id}-modal-email` ? 'Copied!' : 'Copy Email'}
+                      {copiedField === `${selectedStudent._id}-modal-email` ? '✓ Copied!' : 'Copy Email'}
                     </button>
                   </div>
+                  
                   <div className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl p-4">
                     <p className="text-gray-500 text-sm mb-1 flex items-center gap-2">
                       <Phone className="w-4 h-4 text-emerald-500" />
                       Phone Number
                     </p>
-                    <p className="text-gray-800 font-medium">{selectedStudent.phone || 'N/A'}</p>
+                    <p className="text-gray-800 font-medium">{selectedStudent.phone}</p>
+                    <button
+                      onClick={() => handleCopyToClipboard(selectedStudent.phone, 'modal-phone', selectedStudent._id)}
+                      className="mt-2 text-xs text-emerald-600 hover:text-emerald-700 transition-colors"
+                    >
+                      {copiedField === `${selectedStudent._id}-modal-phone` ? '✓ Copied!' : 'Copy Phone'}
+                    </button>
                   </div>
+                  
                   <div className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl p-4">
                     <p className="text-gray-500 text-sm mb-1 flex items-center gap-2">
                       <Key className="w-4 h-4 text-emerald-500" />
                       Password
                     </p>
                     <div className="flex items-center gap-2">
-                      <code className="bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-gray-800 text-sm font-mono flex-1">
-                        {selectedStudent.displayPassword}
-                      </code>
+                      <div className="relative flex-1">
+                        <input
+                          type={showPasswords[`modal-${selectedStudent._id}`] ? "text" : "password"}
+                          readOnly
+                          value={selectedStudent.password}
+                          className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-gray-800 text-sm font-mono focus:outline-none"
+                        />
+                        <button
+                          onClick={() => togglePasswordVisibility(`modal-${selectedStudent._id}`)}
+                          className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-emerald-600"
+                        >
+                          {showPasswords[`modal-${selectedStudent._id}`] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
                       <button
-                        onClick={() => handleCopyToClipboard(selectedStudent.displayPassword, 'modal-password', selectedStudent._id)}
-                        className="p-1.5 text-gray-500 hover:text-emerald-600"
+                        onClick={() => handleCopyToClipboard(selectedStudent.password, 'modal-password', selectedStudent._id)}
+                        className="p-2 text-gray-500 hover:text-emerald-600 transition-colors"
                       >
-                        {copiedField === `${selectedStudent._id}-modal-password` ? <CheckCircle className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+                        {copiedField === `${selectedStudent._id}-modal-password` ? <CheckCircle className="w-5 h-5 text-green-500" /> : <Copy className="w-5 h-5" />}
                       </button>
                     </div>
                   </div>
+                  
                   <div className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl p-4">
                     <p className="text-gray-500 text-sm mb-1 flex items-center gap-2">
                       <Calendar className="w-4 h-4 text-emerald-500" />
@@ -558,6 +659,7 @@ const StudentList = () => {
                     </p>
                     <p className="text-gray-800 font-medium">{formatDate(selectedStudent.createdAt)}</p>
                   </div>
+                  
                   {selectedStudent.age && selectedStudent.age !== 'N/A' && (
                     <div className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl p-4">
                       <p className="text-gray-500 text-sm mb-1 flex items-center gap-2">
@@ -567,6 +669,7 @@ const StudentList = () => {
                       <p className="text-gray-800 font-medium">{selectedStudent.age} years</p>
                     </div>
                   )}
+                  
                   {selectedStudent.gender && selectedStudent.gender !== 'N/A' && (
                     <div className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl p-4">
                       <p className="text-gray-500 text-sm mb-1 flex items-center gap-2">
@@ -576,6 +679,7 @@ const StudentList = () => {
                       <p className="text-gray-800 font-medium">{selectedStudent.gender}</p>
                     </div>
                   )}
+                  
                   {selectedStudent.dob && selectedStudent.dob !== 'N/A' && (
                     <div className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl p-4">
                       <p className="text-gray-500 text-sm mb-1 flex items-center gap-2">
@@ -590,14 +694,26 @@ const StudentList = () => {
                 {/* Student ID */}
                 <div className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl p-4">
                   <p className="text-gray-500 text-sm mb-1">Student ID</p>
-                  <p className="text-gray-800 font-medium text-sm font-mono break-all">
-                    {selectedStudent._id || 'N/A'}
-                  </p>
+                  <div className="flex items-center justify-between">
+                    <p className="text-gray-800 font-medium text-sm font-mono break-all flex-1">
+                      {selectedStudent._id || 'N/A'}
+                    </p>
+                    <button
+                      onClick={() => handleCopyToClipboard(selectedStudent._id || 'N/A', 'student-id', selectedStudent._id)}
+                      className="ml-3 p-2 text-gray-500 hover:text-emerald-600 transition-colors"
+                    >
+                      {copiedField === `${selectedStudent._id}-student-id` ? <CheckCircle className="w-5 h-5 text-green-500" /> : <Copy className="w-5 h-5" />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Close Button */}
+                <div className="pt-4">
                   <button
-                    onClick={() => handleCopyToClipboard(selectedStudent._id || 'N/A', 'student-id', selectedStudent._id)}
-                    className="mt-2 text-xs text-emerald-600 hover:text-emerald-700"
+                    onClick={() => setSelectedStudent(null)}
+                    className="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all transform hover:scale-[1.02]"
                   >
-                    {copiedField === `${selectedStudent._id}-student-id` ? 'Copied!' : 'Copy ID'}
+                    Close
                   </button>
                 </div>
               </div>
