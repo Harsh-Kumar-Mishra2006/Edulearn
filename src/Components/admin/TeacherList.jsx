@@ -17,7 +17,13 @@ import {
   Eye,
   EyeOff,
   Copy,
-  CheckCircle
+  CheckCircle,
+  User,
+  Phone,
+  MapPin,
+  Briefcase,
+  Sparkles,
+  Shield
 } from 'lucide-react';
 
 const TeachersList = ({ 
@@ -33,7 +39,7 @@ const TeachersList = ({
   showPagination = true,
   customFetchUrl = null,
   filterBy = null,
-  showPasswordColumn = true // ✅ NEW: Show password column for admin
+  showPasswordColumn = true
 }) => {
   const [teachers, setTeachers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -41,8 +47,9 @@ const TeachersList = ({
   const [currentPage, setCurrentPage] = useState(1);
   const [deleteConfirmId, setDeleteConfirmId] = useState(null);
   const [totalTeachers, setTotalTeachers] = useState(0);
-  const [showPasswords, setShowPasswords] = useState({}); // ✅ Track which passwords are visible
+  const [showPasswords, setShowPasswords] = useState({});
   const [copiedField, setCopiedField] = useState(null);
+  const [expandedTeacher, setExpandedTeacher] = useState(null);
 
   // Fetch teachers function
   const fetchTeachers = async () => {
@@ -101,19 +108,32 @@ const TeachersList = ({
         teacher.isActive !== false
       );
       
-      console.log('Active teachers count:', activeTeachers.length);
-      
-      // ✅ For demo/UI purposes, we'll add a placeholder password field
-      // In production, you would fetch this from a secure endpoint
-      const teachersWithPassword = activeTeachers.map(teacher => ({
-        ...teacher,
-        // This is just for UI display - in real app, you'd have a secure endpoint
-        // to fetch teacher passwords or store them securely
-        displayPassword: '••••••••' // Placeholder - actual password should not be stored here
+      // Fetch auth data for each teacher to get username and actual password
+      const teachersWithAuth = await Promise.all(activeTeachers.map(async (teacher) => {
+        try {
+          const authResponse = await fetch(`https://edulearnbackend-ffiv.onrender.com/api/auth/user-by-email?email=${teacher.email}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (authResponse.ok) {
+            const authData = await authResponse.json();
+            return {
+              ...teacher,
+              username: authData.data?.username || teacher.email.split('@')[0],
+              authPassword: authData.data?.tempPassword || '••••••••'
+            };
+          }
+        } catch (err) {
+          console.error('Error fetching auth for teacher:', teacher.email);
+        }
+        return {
+          ...teacher,
+          username: teacher.email?.split('@')[0] || 'teacher',
+          authPassword: '••••••••'
+        };
       }));
       
-      setTeachers(teachersWithPassword);
-      setTotalTeachers(teachersWithPassword.length);
+      setTeachers(teachersWithAuth);
+      setTotalTeachers(teachersWithAuth.length);
       
     } catch (error) {
       if (error.name === 'AbortError') {
@@ -126,29 +146,6 @@ const TeachersList = ({
       setTotalTeachers(0);
     } finally {
       setLoading(false);
-    }
-  };
-
-  // Fetch teacher password from a secure endpoint
-  const fetchTeacherPassword = async (teacherId, teacherEmail) => {
-    try {
-      const token = localStorage.getItem('token');
-      // You would need to create this endpoint
-      const response = await fetch(`https://edulearnbackend-ffiv.onrender.com/api/admin/teachers/${teacherId}/password`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      if (response.ok) {
-        const result = await response.json();
-        return result.password;
-      }
-      return 'Unable to fetch password';
-    } catch (error) {
-      console.error('Error fetching password:', error);
-      return 'Error fetching password';
     }
   };
 
@@ -220,25 +217,11 @@ const TeachersList = ({
 
   if (loading) {
     return (
-      <div className={`bg-gradient-to-r from-blue-200 to-pink-200 backdrop-blur-md border border-white/10 rounded-2xl p-8 ${className}`}>
-        {showHeader && (
-          <div className="flex justify-between items-center mb-8">
-            <h3 className="text-2xl font-semibold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
-              {headerTitle}
-            </h3>
-          </div>
-        )}
-        
-        <div className="flex flex-col items-center justify-center py-16 px-4">
-          <Loader2 className="w-16 h-16 text-white/80 animate-spin mb-6" strokeWidth={1.5} />
-          <div className="text-center space-y-3">
-            <p className="text-xl font-medium text-gray-800 animate-pulse">
-              Loading content...
-            </p>
-            <p className="text-sm text-gray-600/80">
-              Please wait while we fetch the latest updates
-            </p>
-          </div>
+      <div className="min-h-[500px] bg-gradient-to-br from-indigo-100 via-purple-100 to-pink-100 rounded-3xl flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-16 h-16 text-indigo-600 animate-spin mx-auto mb-4" />
+          <p className="text-gray-700 text-lg font-medium animate-pulse">Loading teachers...</p>
+          <p className="text-gray-500 text-sm mt-2">Fetching all teacher details</p>
         </div>
       </div>
     );
@@ -246,14 +229,14 @@ const TeachersList = ({
 
   if (error) {
     return (
-      <div className={`bg-gradient-to-r from-blue-200 to-pink-200 backdrop-blur-md border border-white/10 rounded-2xl p-8 ${className}`}>
-        <div className="text-center py-12">
-          <AlertCircle className="w-16 h-16 mx-auto mb-4 text-red-800" />
-          <p className="text-red-800 text-lg mb-2">Error Loading Teachers</p>
-          <p className="text-black mb-4">{error}</p>
+      <div className="min-h-[500px] bg-gradient-to-br from-red-50 to-orange-50 rounded-3xl flex items-center justify-center">
+        <div className="text-center p-8">
+          <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+          <p className="text-red-600 text-lg font-semibold mb-2">Error Loading Teachers</p>
+          <p className="text-gray-600 mb-6">{error}</p>
           <button
             onClick={fetchTeachers}
-            className="px-6 py-3 bg-black hover:bg-white/20 rounded-xl text-white transition-all"
+            className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:shadow-lg transition-all transform hover:scale-105"
           >
             Try Again
           </button>
@@ -263,32 +246,50 @@ const TeachersList = ({
   }
 
   return (
-    <div className={`bg-gradient-to-r from-blue-200 to-pink-200 backdrop-blur-md border border-white/10 p-4 rounded-2xl ${className}`}>
+    <div className="bg-gradient-to-br from-indigo-100 via-purple-100 to-pink-100 rounded-3xl p-6 shadow-xl overflow-hidden relative">
+      {/* Animated Background */}
+      <motion.div
+        className="absolute -top-40 -right-40 w-80 h-80 bg-gradient-to-br from-indigo-300 to-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-30"
+        animate={{ x: [0, 30, 0], y: [0, -30, 0] }}
+        transition={{ duration: 15, repeat: Infinity }}
+      />
+      <motion.div
+        className="absolute -bottom-40 -left-40 w-80 h-80 bg-gradient-to-br from-purple-300 to-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-30"
+        animate={{ x: [0, -30, 0], y: [0, 30, 0] }}
+        transition={{ duration: 18, repeat: Infinity }}
+      />
+
       {showHeader && (
-        <div className="flex justify-between items-center mb-8">
-          <h3 className="text-black font-sans rounded-xl text-2xl font-bold">{headerTitle}</h3>
+        <div className="relative z-10 flex justify-between items-center mb-8">
+          <div>
+            <h3 className="text-3xl font-bold bg-gradient-to-r from-indigo-700 to-purple-700 bg-clip-text text-transparent">
+              {headerTitle}
+            </h3>
+            <p className="text-gray-600 mt-1">Manage and view all teacher accounts</p>
+          </div>
           <div className="flex items-center gap-4">
-            <span className="bg-white/80 px-3 py-1 rounded-full text-sm">
-              {totalTeachers} teachers total
-            </span>
+            <div className="bg-white/60 backdrop-blur-sm px-4 py-2 rounded-full shadow-sm">
+              <span className="text-gray-700 font-semibold">{totalTeachers}</span>
+              <span className="text-gray-500 ml-1">teachers total</span>
+            </div>
             {showPagination && totalPages > 1 && (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 bg-white/60 backdrop-blur-sm rounded-full p-1">
                 <button
                   onClick={handlePrevPage}
                   disabled={currentPage === 1}
-                  className="bg-white/10 hover:bg-white/20 p-2 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                  className="p-2 rounded-full hover:bg-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <ChevronLeft className="w-4 h-4" />
+                  <ChevronLeft className="w-5 h-5" />
                 </button>
-                <span className="text-sm">
-                  Page {currentPage} of {totalPages}
+                <span className="px-3 text-sm font-medium">
+                  {currentPage} / {totalPages}
                 </span>
                 <button
                   onClick={handleNextPage}
                   disabled={currentPage === totalPages}
-                  className="bg-white/10 hover:bg-white/20 p-2 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                  className="p-2 rounded-full hover:bg-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <ChevronRight className="w-4 h-4" />
+                  <ChevronRight className="w-5 h-5" />
                 </button>
               </div>
             )}
@@ -297,133 +298,34 @@ const TeachersList = ({
       )}
 
       {teachers.length === 0 ? (
-        <div className="text-center py-12">
-          <GraduationCap className="w-16 h-16 mx-auto mb-4 text-white/50" />
-          <p className="text-white/70 text-lg">{emptyStateMessage}</p>
-          <p className="text-white/50">{emptyStateSubmessage}</p>
+        <div className="relative z-10 text-center py-16">
+          <GraduationCap className="w-20 h-20 mx-auto mb-4 text-gray-400" />
+          <p className="text-gray-600 text-xl font-medium">{emptyStateMessage}</p>
+          <p className="text-gray-400 mt-2">{emptyStateSubmessage}</p>
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="relative z-10 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {currentTeachers.map((teacher, index) => (
               <motion.div
                 key={teacher._id}
-                className={`bg-blue-600 border border-white/20 rounded-xl p-6 hover:bg-blue-500 transition-all duration-300 ${
-                  onTeacherClick ? 'cursor-pointer' : ''
-                }`}
-                initial={{ opacity: 0, y: 20 }}
+                className="bg-white/90 backdrop-blur-sm rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 cursor-pointer border border-white/50"
+                initial={{ opacity: 0, y: 30 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1 }}
-                whileHover={{ y: -5 }}
+                transition={{ delay: index * 0.05, type: 'spring', stiffness: 100 }}
+                whileHover={{ y: -8 }}
                 onClick={() => onTeacherClick && onTeacherClick(teacher)}
               >
-                <div className="flex items-start gap-4">
-                  {/* Teacher Avatar */}
-                  <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
-                    <GraduationCap className="w-6 h-6 text-white" />
-                  </div>
-
-                  {/* Teacher Info */}
-                  <div className="flex-1 min-w-0">
-                    <h4 className="text-white font-semibold text-lg truncate">{teacher.name}</h4>
-                    
-                    {/* Email */}
-                    <div className="flex items-center gap-1 text-white/80 text-sm truncate">
-                      <Mail className="w-3 h-3 flex-shrink-0" />
-                      <span className="truncate">{teacher.email}</span>
+                {/* Gradient Header */}
+                <div className="h-28 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 relative">
+                  <div className="absolute -bottom-10 left-5">
+                    <div className="w-20 h-20 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-2xl flex items-center justify-center shadow-lg border-4 border-white">
+                      <GraduationCap className="w-10 h-10 text-white" />
                     </div>
-                    
-                    {/* Course */}
-                    {teacher.course && (
-                      <div className="flex items-center gap-1 text-yellow-400 text-sm font-medium mt-1">
-                        <BookOpen className="w-3 h-3 flex-shrink-0" />
-                        <span className="truncate">{teacher.course}</span>
-                      </div>
-                    )}
-
-                    {/* ✅ PASSWORD SECTION FOR ADMIN */}
-                    {showPasswordColumn && (
-                      <div className="mt-2 p-2 bg-blue-700/50 rounded-lg">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <Lock className="w-3 h-3 text-yellow-400" />
-                            <span className="text-white/70 text-xs font-medium">Password:</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <input
-                              type={showPasswords[teacher._id] ? "text" : "password"}
-                              readOnly
-                              value={teacher.displayPassword || '••••••••'}
-                              className="bg-blue-800/50 border border-blue-400/30 rounded px-2 py-1 text-white text-xs w-24 font-mono"
-                              onClick={(e) => e.stopPropagation()}
-                            />
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                togglePasswordVisibility(teacher._id);
-                              }}
-                              className="text-white/70 hover:text-white transition-colors"
-                              title={showPasswords[teacher._id] ? "Hide password" : "Show password"}
-                            >
-                              {showPasswords[teacher._id] ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                const passwordToCopy = teacher.password || teacher.displayPassword || 'Not set';
-                                handleCopyToClipboard(passwordToCopy, 'password', teacher._id);
-                              }}
-                              className="text-white/70 hover:text-white transition-colors"
-                              title="Copy password"
-                            >
-                              {copiedField === `${teacher._id}-password` ? 
-                                <CheckCircle className="w-3 h-3 text-green-400" /> : 
-                                <Copy className="w-3 h-3" />
-                              }
-                            </button>
-                          </div>
-                        </div>
-                        <p className="text-blue-300 text-xs mt-1 italic">
-                          Note: Teacher can change password after login
-                        </p>
-                      </div>
-                    )}
-
-                    {/* Status & Additional Info */}
-                    <div className="flex flex-wrap items-center gap-2 mt-2">
-                      <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold ${
-                        teacher.status === 'active' 
-                          ? 'bg-green-500/20 text-green-400 border border-green-400/50' 
-                          : teacher.status === 'pending'
-                          ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-400/50'
-                          : 'bg-red-500/20 text-red-400 border border-red-400/50'
-                      }`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${
-                          teacher.status === 'active' ? 'bg-green-400' : 'bg-current'
-                        }`}></span>
-                        {teacher.status || 'active'}
-                      </span>
-
-                      {teacher.qualification && (
-                        <span className="flex items-center gap-1 text-white/60 text-xs">
-                          <Award className="w-3 h-3" />
-                          {teacher.qualification}
-                        </span>
-                      )}
-                    </div>
-
-                    {teacher.years_of_experience && (
-                      <div className="flex items-center gap-1 text-white/60 text-xs mt-1">
-                        <Clock className="w-3 h-3" />
-                        <span>{teacher.years_of_experience} years experience</span>
-                      </div>
-                    )}
                   </div>
-
-                  {/* Delete Button */}
                   {showDeleteButton && (
                     <button 
-                      className="bg-red-500/20 border border-red-500 text-red-400 w-8 h-8 rounded-lg flex items-center justify-center hover:bg-red-500 hover:text-white transition-all duration-300 flex-shrink-0"
+                      className="absolute top-3 right-3 bg-red-500/80 backdrop-blur-sm text-white w-8 h-8 rounded-lg flex items-center justify-center hover:bg-red-600 transition-all z-10"
                       onClick={(e) => {
                         e.stopPropagation();
                         setDeleteConfirmId(teacher._id);
@@ -434,13 +336,189 @@ const TeachersList = ({
                     </button>
                   )}
                 </div>
+                
+                {/* Content */}
+                <div className="pt-12 p-5">
+                  {/* Name and Role */}
+                  <h4 className="text-xl font-bold text-gray-800">{teacher.name}</h4>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-medium">
+                      <Shield className="w-3 h-3" />
+                      Teacher
+                    </span>
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                      teacher.status === 'active' 
+                        ? 'bg-emerald-100 text-emerald-700' 
+                        : 'bg-gray-100 text-gray-600'
+                    }`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${teacher.status === 'active' ? 'bg-emerald-500' : 'bg-gray-500'}`}></span>
+                      {teacher.status || 'active'}
+                    </span>
+                  </div>
+
+                  {/* Username & Email */}
+                  <div className="mt-3 space-y-2">
+                    <div className="flex items-center gap-2 text-gray-600 text-sm">
+                      <User className="w-4 h-4 text-indigo-500" />
+                      <span className="font-mono text-xs bg-gray-100 px-2 py-1 rounded">{teacher.username || teacher.email?.split('@')[0]}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-gray-600 text-sm">
+                      <Mail className="w-4 h-4 text-indigo-500" />
+                      <span className="truncate">{teacher.email}</span>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleCopyToClipboard(teacher.email, 'email', teacher._id);
+                        }}
+                        className="ml-auto text-gray-400 hover:text-indigo-600 transition-colors"
+                      >
+                        {copiedField === `${teacher._id}-email` ? <CheckCircle className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Password Section */}
+                  {showPasswordColumn && (
+                    <div className="mt-3 p-3 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl">
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center gap-2">
+                          <Lock className="w-3 h-3 text-purple-600" />
+                          <span className="text-gray-700 text-xs font-medium">Password:</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type={showPasswords[teacher._id] ? "text" : "password"}
+                            readOnly
+                            value={teacher.authPassword || '••••••••'}
+                            className="bg-white border border-purple-200 rounded-lg px-2 py-1 text-gray-700 text-xs w-28 font-mono focus:outline-none"
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              togglePasswordVisibility(teacher._id);
+                            }}
+                            className="text-gray-500 hover:text-purple-600 transition-colors"
+                            title={showPasswords[teacher._id] ? "Hide password" : "Show password"}
+                          >
+                            {showPasswords[teacher._id] ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const passwordToCopy = teacher.authPassword || 'Password not set';
+                              handleCopyToClipboard(passwordToCopy, 'password', teacher._id);
+                            }}
+                            className="text-gray-500 hover:text-purple-600 transition-colors"
+                            title="Copy password"
+                          >
+                            {copiedField === `${teacher._id}-password` ? 
+                              <CheckCircle className="w-3 h-3 text-green-500" /> : 
+                              <Copy className="w-3 h-3" />
+                            }
+                          </button>
+                        </div>
+                      </div>
+                      <p className="text-purple-500 text-xs italic">Admin-set password • Teacher can change after login</p>
+                    </div>
+                  )}
+
+                  {/* Course & Phone */}
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <div className="flex items-center gap-2 text-gray-600 text-sm">
+                      <BookOpen className="w-4 h-4 text-indigo-500" />
+                      <span className="truncate">{teacher.course || 'Not assigned'}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-gray-600 text-sm">
+                      <Phone className="w-4 h-4 text-indigo-500" />
+                      <span>{teacher.phone_number || teacher.phone || 'N/A'}</span>
+                    </div>
+                  </div>
+
+                  {/* Qualification & Experience */}
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {teacher.qualification && (
+                      <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 rounded-lg text-xs">
+                        <Award className="w-3 h-3" />
+                        {teacher.qualification}
+                      </span>
+                    )}
+                    {teacher.years_of_experience && (
+                      <span className="inline-flex items-center gap-1 px-2 py-1 bg-amber-50 text-amber-700 rounded-lg text-xs">
+                        <Clock className="w-3 h-3" />
+                        {teacher.years_of_experience} years
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Expand/Collapse Button */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setExpandedTeacher(expandedTeacher === teacher._id ? null : teacher._id);
+                    }}
+                    className="mt-3 w-full text-center text-indigo-600 text-sm font-medium hover:text-indigo-700 transition-colors"
+                  >
+                    {expandedTeacher === teacher._id ? 'Show less ▲' : 'Show more details ▼'}
+                  </button>
+
+                  {/* Expanded Details */}
+                  <AnimatePresence>
+                    {expandedTeacher === teacher._id && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.3 }}
+                        className="mt-3 pt-3 border-t border-gray-100 space-y-2 overflow-hidden"
+                      >
+                        {teacher.specialization && teacher.specialization.length > 0 && (
+                          <div>
+                            <p className="text-gray-500 text-xs mb-1">Specialization</p>
+                            <div className="flex flex-wrap gap-1">
+                              {teacher.specialization.map((spec, i) => (
+                                <span key={i} className="px-2 py-0.5 bg-purple-50 text-purple-600 rounded-full text-xs">
+                                  {spec}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {teacher.bio && (
+                          <div>
+                            <p className="text-gray-500 text-xs mb-1">Bio</p>
+                            <p className="text-gray-600 text-sm">{teacher.bio}</p>
+                          </div>
+                        )}
+                        {teacher.address && (
+                          <div>
+                            <p className="text-gray-500 text-xs mb-1 flex items-center gap-1">
+                              <MapPin className="w-3 h-3" /> Address
+                            </p>
+                            <p className="text-gray-600 text-sm">
+                              {typeof teacher.address === 'object' 
+                                ? `${teacher.address.street}, ${teacher.address.city}, ${teacher.address.state} - ${teacher.address.pincode}`
+                                : teacher.address}
+                            </p>
+                          </div>
+                        )}
+                        {teacher.joining_date && (
+                          <div>
+                            <p className="text-gray-500 text-xs mb-1">Joined</p>
+                            <p className="text-gray-600 text-sm">{new Date(teacher.joining_date).toLocaleDateString()}</p>
+                          </div>
+                        )}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
               </motion.div>
             ))}
           </div>
           
           {showPagination && totalPages > 1 && (
-            <div className="mt-8 pt-6 border-t border-white/10 text-center">
-              <p className="text-blue-800">
+            <div className="relative z-10 mt-8 pt-6 border-t border-white/30 text-center">
+              <p className="text-gray-600 text-sm">
                 Showing teachers {indexOfFirstTeacher + 1} to {Math.min(indexOfLastTeacher, teachers.length)} of {totalTeachers}
               </p>
             </div>
@@ -452,39 +530,41 @@ const TeachersList = ({
       <AnimatePresence>
         {deleteConfirmId && (
           <motion.div
-            className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={() => setDeleteConfirmId(null)}
           >
             <motion.div
-              className="bg-white rounded-2xl p-8 text-center max-w-md w-full"
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.8, opacity: 0 }}
+              className="bg-white rounded-2xl p-8 text-center max-w-md w-full shadow-2xl"
+              initial={{ scale: 0.9, opacity: 0, y: 30 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 30 }}
               onClick={(e) => e.stopPropagation()}
             >
-              <Trash2 className="w-16 h-16 text-red-500 mx-auto mb-4" />
+              <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Trash2 className="w-10 h-10 text-red-500" />
+              </div>
               <h3 className="text-2xl font-bold text-gray-800 mb-2">Delete Teacher</h3>
               <p className="text-gray-600 mb-4">
                 Are you sure you want to delete{' '}
-                <span className="font-semibold">
+                <span className="font-semibold text-indigo-600">
                   {teachers.find(t => t._id === deleteConfirmId)?.name}
                 </span>
                 ?
               </p>
-              <p className="text-red-500 font-semibold mb-6">This action cannot be undone.</p>
+              <p className="text-red-500 text-sm font-medium mb-6">⚠️ This action cannot be undone.</p>
               <div className="flex gap-3">
                 <button 
                   onClick={() => setDeleteConfirmId(null)}
-                  className="flex-1 px-6 py-3 bg-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-400 transition-all duration-200"
+                  className="flex-1 px-6 py-3 bg-gray-100 text-gray-700 rounded-xl font-semibold hover:bg-gray-200 transition-all"
                 >
                   Cancel
                 </button>
                 <button 
                   onClick={() => handleDeleteTeacher(deleteConfirmId)}
-                  className="flex-1 px-6 py-3 bg-red-500 text-white rounded-xl font-semibold hover:bg-red-600 transform hover:-translate-y-0.5 transition-all duration-200"
+                  className="flex-1 px-6 py-3 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all"
                 >
                   Delete
                 </button>
