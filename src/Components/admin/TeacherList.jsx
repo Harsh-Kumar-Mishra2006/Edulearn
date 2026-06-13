@@ -419,7 +419,7 @@ const TeachersList = ({
                           </button>
                         </div>
                       </div>
-                      <p className="text-purple-500 text-xs italic">Admin-set password • Teacher can change after login</p>
+                      
                     </div>
                   )}
 
