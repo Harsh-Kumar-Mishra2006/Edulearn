@@ -19,9 +19,10 @@ import {
   User,
   Phone,
   MapPin,
-  Briefcase,
   Sparkles,
-  Shield
+  Shield,
+  RefreshCw,
+  Key
 } from 'lucide-react';
 
 const TeachersList = ({ 
@@ -48,7 +49,6 @@ const TeachersList = ({
   const [copiedField, setCopiedField] = useState(null);
   const [expandedTeacher, setExpandedTeacher] = useState(null);
 
-  // Fetch teachers function
   const fetchTeachers = async () => {
     try {
       setLoading(true);
@@ -56,91 +56,73 @@ const TeachersList = ({
       
       const token = localStorage.getItem('token');
       
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000);
-      
       const baseUrl = customFetchUrl || 'https://edulearnbackend-ffiv.onrender.com/api/admin/teachers';
       const url = new URL(baseUrl);
-      
       url.searchParams.append('getAll', 'true');
-      
-      if (filterBy) {
-        Object.entries(filterBy).forEach(([key, value]) => {
-          if (value) url.searchParams.append(key, value);
-        });
-      }
       
       const response = await fetch(url.toString(), {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
-        },
-        signal: controller.signal
+        }
       });
-
-      clearTimeout(timeoutId);
       
       if (!response.ok) {
         throw new Error(`Failed to fetch teachers: ${response.status}`);
       }
       
       const result = await response.json();
-      console.log('Teachers API Response:', result);
       
       let teachersArray = [];
       if (result.success && Array.isArray(result.data)) {
         teachersArray = result.data;
-      } else if (Array.isArray(result.teachers)) {
-        teachersArray = result.teachers;
       } else if (Array.isArray(result)) {
         teachersArray = result;
-      } else if (result.data && Array.isArray(result.data.teachers)) {
-        teachersArray = result.data.teachers;
       }
       
-      // Filter out inactive/deleted teachers
+      // Filter active teachers
       const activeTeachers = teachersArray.filter(teacher => 
-        teacher.status !== 'inactive' && 
-        teacher.status !== 'deleted' &&
-        teacher.isActive !== false
+        teacher.status !== 'inactive' && teacher.status !== 'deleted'
       );
       
-      // Fetch auth data for each teacher to get username and actual password
-      const teachersWithAuth = await Promise.all(activeTeachers.map(async (teacher) => {
+      // Fetch actual passwords for each teacher from the backend
+      const teachersWithPasswords = await Promise.all(activeTeachers.map(async (teacher) => {
         try {
-          const authResponse = await fetch(`https://edulearnbackend-ffiv.onrender.com/api/auth/user-by-email?email=${teacher.email}`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-          });
-          if (authResponse.ok) {
-            const authData = await authResponse.json();
-            return {
-              ...teacher,
-              username: authData.data?.username || teacher.email.split('@')[0],
-              authPassword: authData.data?.tempPassword || 'Teacher@123'
-            };
+          // Try to get password from the teacher data first (if returned from add)
+          let password = teacher.password || teacher.tempPassword;
+          
+          // If no password, try to fetch from credentials endpoint
+          if (!password || password === '••••••••') {
+            const credResponse = await fetch(`https://edulearnbackend-ffiv.onrender.com/api/admin/teachers/${teacher._id}/credentials`, {
+              headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (credResponse.ok) {
+              const credData = await credResponse.json();
+              password = credData.password || '••••••••';
+            }
           }
+          
+          return {
+            ...teacher,
+            displayPassword: password || 'Teacher@123',
+            username: teacher.username || teacher.email?.split('@')[0]
+          };
         } catch (err) {
-          console.error('Error fetching auth for teacher:', teacher.email);
+          console.error('Error fetching password for teacher:', teacher.email);
+          return {
+            ...teacher,
+            displayPassword: 'Teacher@123',
+            username: teacher.username || teacher.email?.split('@')[0]
+          };
         }
-        return {
-          ...teacher,
-          username: teacher.email?.split('@')[0] || 'teacher',
-          authPassword: 'Teacher@123'
-        };
       }));
       
-      setTeachers(teachersWithAuth);
-      setTotalTeachers(teachersWithAuth.length);
+      setTeachers(teachersWithPasswords);
+      setTotalTeachers(teachersWithPasswords.length);
       
     } catch (error) {
-      if (error.name === 'AbortError') {
-        setError('Request timeout. Please try again.');
-      } else {
-        setError(error.message || 'Failed to fetch teachers');
-        console.error('Error fetching teachers:', error);
-      }
-      setTeachers([]);
-      setTotalTeachers(0);
+      setError(error.message || 'Failed to fetch teachers');
+      console.error('Error fetching teachers:', error);
     } finally {
       setLoading(false);
     }
@@ -166,18 +148,10 @@ const TeachersList = ({
     } else {
       try {
         const token = localStorage.getItem('token');
-        const response = await fetch(`https://edulearnbackend-ffiv.onrender.com/api/admin/teachers/${teacherId}`, {
+        await fetch(`https://edulearnbackend-ffiv.onrender.com/api/admin/teachers/${teacherId}`, {
           method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
+          headers: { 'Authorization': `Bearer ${token}` }
         });
-
-        if (!response.ok) {
-          throw new Error('Delete failed');
-        }
-
         setTeachers(prev => prev.filter(t => t._id !== teacherId));
         setTotalTeachers(prev => prev - 1);
       } catch (error) {
@@ -193,25 +167,13 @@ const TeachersList = ({
   const indexOfFirstTeacher = indexOfLastTeacher - itemsPerPage;
   const currentTeachers = teachers.slice(indexOfFirstTeacher, indexOfLastTeacher);
 
-  const handleNextPage = () => {
-    if (currentPage < totalPages) {
-      setCurrentPage(prev => prev + 1);
-    }
-  };
-
-  const handlePrevPage = () => {
-    if (currentPage > 1) {
-      setCurrentPage(prev => prev - 1);
-    }
-  };
-
   if (loading) {
     return (
       <div className="min-h-[500px] bg-gradient-to-br from-indigo-100 via-purple-100 to-pink-100 rounded-3xl flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="w-16 h-16 text-indigo-600 animate-spin mx-auto mb-4" />
           <p className="text-gray-700 text-lg font-medium animate-pulse">Loading teachers...</p>
-          <p className="text-gray-500 text-sm mt-2">Fetching all teacher details</p>
+          <p className="text-gray-500 text-sm mt-2">Fetching teacher credentials...</p>
         </div>
       </div>
     );
@@ -219,15 +181,11 @@ const TeachersList = ({
 
   if (error) {
     return (
-      <div className="min-h-[500px] bg-gradient-to-br from-red-50 to-orange-50 rounded-3xl flex items-center justify-center">
-        <div className="text-center p-8">
+      <div className="min-h-[500px] bg-gradient-to-br from-red-50 to-orange-50 rounded-3xl flex items-center justify-center p-8">
+        <div className="text-center">
           <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
-          <p className="text-red-600 text-lg font-semibold mb-2">Error Loading Teachers</p>
-          <p className="text-gray-600 mb-6">{error}</p>
-          <button
-            onClick={fetchTeachers}
-            className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:shadow-lg transition-all transform hover:scale-105"
-          >
+          <p className="text-red-600 text-lg font-semibold mb-2">{error}</p>
+          <button onClick={fetchTeachers} className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:shadow-lg transition-all">
             Try Again
           </button>
         </div>
@@ -262,27 +220,12 @@ const TeachersList = ({
               <span className="text-gray-700 font-semibold">{totalTeachers}</span>
               <span className="text-gray-500 ml-1">teachers total</span>
             </div>
-            {showPagination && totalPages > 1 && (
-              <div className="flex items-center gap-2 bg-white/60 backdrop-blur-sm rounded-full p-1">
-                <button
-                  onClick={handlePrevPage}
-                  disabled={currentPage === 1}
-                  className="p-2 rounded-full hover:bg-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <ChevronLeft className="w-5 h-5" />
-                </button>
-                <span className="px-3 text-sm font-medium">
-                  {currentPage} / {totalPages}
-                </span>
-                <button
-                  onClick={handleNextPage}
-                  disabled={currentPage === totalPages}
-                  className="p-2 rounded-full hover:bg-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <ChevronRight className="w-5 h-5" />
-                </button>
-              </div>
-            )}
+            <button
+              onClick={fetchTeachers}
+              className="p-2 bg-white/60 rounded-full hover:bg-white transition-all"
+            >
+              <RefreshCw className="w-5 h-5 text-indigo-600" />
+            </button>
           </div>
         </div>
       )}
@@ -299,15 +242,15 @@ const TeachersList = ({
             {currentTeachers.map((teacher, index) => (
               <motion.div
                 key={teacher._id}
-                className="bg-white/90 backdrop-blur-sm rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 cursor-pointer border border-white/50"
+                className="bg-white/90 backdrop-blur-sm rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 border border-white/50"
                 initial={{ opacity: 0, y: 30 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.05, type: 'spring', stiffness: 100 }}
-                whileHover={{ y: -8 }}
+                transition={{ delay: index * 0.05 }}
+                whileHover={{ y: -5 }}
                 onClick={() => onTeacherClick && onTeacherClick(teacher)}
               >
                 {/* Gradient Header */}
-                <div className="h-28 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 relative">
+                <div className="h-24 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 relative">
                   <div className="absolute -bottom-10 left-5">
                     <div className="w-20 h-20 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-2xl flex items-center justify-center shadow-lg border-4 border-white">
                       <GraduationCap className="w-10 h-10 text-white" />
@@ -320,7 +263,6 @@ const TeachersList = ({
                         e.stopPropagation();
                         setDeleteConfirmId(teacher._id);
                       }}
-                      title="Delete teacher"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -329,80 +271,78 @@ const TeachersList = ({
                 
                 {/* Content */}
                 <div className="pt-12 p-5">
-                  {/* Name and Role */}
                   <h4 className="text-xl font-bold text-gray-800">{teacher.name}</h4>
+                  
                   <div className="flex items-center gap-2 mt-1">
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-medium">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs">
                       <Shield className="w-3 h-3" />
                       Teacher
                     </span>
-                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
-                      teacher.status === 'active' 
-                        ? 'bg-emerald-100 text-emerald-700' 
-                        : 'bg-gray-100 text-gray-600'
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs ${
+                      teacher.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-600'
                     }`}>
-                      <span className={`w-1.5 h-1.5 rounded-full ${teacher.status === 'active' ? 'bg-emerald-500' : 'bg-gray-500'}`}></span>
+                      <span className={`w-1.5 h-1.5 rounded-full ${teacher.status === 'active' ? 'bg-emerald-500' : 'bg-gray-500'}`} />
                       {teacher.status || 'active'}
                     </span>
                   </div>
 
-                  {/* Username & Email */}
-                  <div className="mt-3 space-y-2">
-                    <div className="flex items-center gap-2 text-gray-600 text-sm">
-                      <User className="w-4 h-4 text-indigo-500" />
-                      <span className="font-mono text-xs bg-gray-100 px-2 py-1 rounded">{teacher.username || teacher.email?.split('@')[0]}</span>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleCopyToClipboard(teacher.username || teacher.email?.split('@')[0], 'username', teacher._id);
-                        }}
-                        className="ml-auto text-gray-400 hover:text-indigo-600 transition-colors"
-                      >
-                        {copiedField === `${teacher._id}-username` ? <CheckCircle className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3" />}
-                      </button>
-                    </div>
-                    <div className="flex items-center gap-2 text-gray-600 text-sm">
-                      <Mail className="w-4 h-4 text-indigo-500" />
-                      <span className="truncate">{teacher.email}</span>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleCopyToClipboard(teacher.email, 'email', teacher._id);
-                        }}
-                        className="ml-auto text-gray-400 hover:text-indigo-600 transition-colors"
-                      >
-                        {copiedField === `${teacher._id}-email` ? <CheckCircle className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3" />}
-                      </button>
-                    </div>
+                  {/* Username */}
+                  <div className="mt-3 flex items-center gap-2 text-gray-600 text-sm">
+                    <User className="w-4 h-4 text-indigo-500" />
+                    <span className="font-mono text-xs bg-gray-100 px-2 py-1 rounded">
+                      {teacher.username}
+                    </span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleCopyToClipboard(teacher.username, 'username', teacher._id);
+                      }}
+                      className="ml-auto text-gray-400 hover:text-indigo-600"
+                    >
+                      {copiedField === `${teacher._id}-username` ? <CheckCircle className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3" />}
+                    </button>
+                  </div>
+                  
+                  {/* Email */}
+                  <div className="mt-2 flex items-center gap-2 text-gray-600 text-sm">
+                    <Mail className="w-4 h-4 text-indigo-500" />
+                    <span className="truncate flex-1">{teacher.email}</span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleCopyToClipboard(teacher.email, 'email', teacher._id);
+                      }}
+                      className="text-gray-400 hover:text-indigo-600"
+                    >
+                      {copiedField === `${teacher._id}-email` ? <CheckCircle className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3" />}
+                    </button>
                   </div>
 
-                  {/* Password Section - Directly visible */}
+                  {/* Password Section - Directly Visible with actual password */}
                   {showPasswordColumn && (
                     <div className="mt-3 p-3 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <Lock className="w-4 h-4 text-purple-600" />
+                          <Key className="w-4 h-4 text-purple-600" />
                           <span className="text-gray-700 text-sm font-medium">Password:</span>
                         </div>
                         <div className="flex items-center gap-2">
                           <code className="bg-white border border-purple-200 rounded-lg px-3 py-1.5 text-gray-800 text-sm font-mono">
-                            {teacher.authPassword || 'Teacher@123'}
+                            {teacher.displayPassword}
                           </code>
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleCopyToClipboard(teacher.authPassword || 'Teacher@123', 'password', teacher._id);
+                              handleCopyToClipboard(teacher.displayPassword, 'password', teacher._id);
                             }}
-                            className="text-gray-500 hover:text-purple-600 transition-colors p-1.5"
+                            className="text-gray-500 hover:text-purple-600 p-1.5"
                             title="Copy password"
                           >
-                            {copiedField === `${teacher._id}-password` ? 
-                              <CheckCircle className="w-4 h-4 text-green-500" /> : 
-                              <Copy className="w-4 h-4" />
-                            }
+                            {copiedField === `${teacher._id}-password` ? <CheckCircle className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
                           </button>
                         </div>
                       </div>
+                      <p className="text-purple-500 text-xs italic mt-1">Admin-set password • Copy for teacher</p>
                     </div>
                   )}
 
@@ -434,7 +374,7 @@ const TeachersList = ({
                     )}
                   </div>
 
-                  {/* Expand/Collapse Button */}
+                  {/* Expand Button */}
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -500,10 +440,24 @@ const TeachersList = ({
           </div>
           
           {showPagination && totalPages > 1 && (
-            <div className="relative z-10 mt-8 pt-6 border-t border-white/30 text-center">
-              <p className="text-gray-600 text-sm">
-                Showing teachers {indexOfFirstTeacher + 1} to {Math.min(indexOfLastTeacher, teachers.length)} of {totalTeachers}
-              </p>
+            <div className="relative z-10 mt-8 flex justify-center gap-3">
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                disabled={currentPage === 1}
+                className="p-2 rounded-full bg-white shadow-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-indigo-50 transition-all"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+              <span className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-full font-medium shadow-md">
+                {currentPage} / {totalPages}
+              </span>
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                disabled={currentPage === totalPages}
+                className="p-2 rounded-full bg-white shadow-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-indigo-50 transition-all"
+              >
+                <ChevronRight className="w-5 h-5" />
+              </button>
             </div>
           )}
         </>
@@ -521,9 +475,9 @@ const TeachersList = ({
           >
             <motion.div
               className="bg-white rounded-2xl p-8 text-center max-w-md w-full shadow-2xl"
-              initial={{ scale: 0.9, opacity: 0, y: 30 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.9, opacity: 0, y: 30 }}
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
             >
               <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">

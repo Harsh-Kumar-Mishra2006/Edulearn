@@ -13,8 +13,6 @@ import {
   Loader2,
   ChevronLeft,
   ChevronRight,
-  Eye,
-  Award,
   RefreshCw,
   Lock,
   Copy,
@@ -22,7 +20,8 @@ import {
   Shield,
   Sparkles,
   UserCircle,
-  Cake
+  Cake,
+  Key
 } from 'lucide-react';
 import axios from 'axios';
 
@@ -76,88 +75,45 @@ const StudentList = () => {
       
       console.log('🔵 Fetching students with token');
       
-      let response;
-      let success = false;
-      
-      // Try endpoint 1: /api/auth/all-students
-      try {
-        console.log('🔵 Trying endpoint: /api/auth/all-students');
-        response = await axios.get('https://edulearnbackend-ffiv.onrender.com/api/auth/all-students', {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        });
-        
-        if (response.data.success) {
-          success = true;
-          console.log('✅ Success from /api/auth/all-students');
+      // Use the new endpoint that returns student details with passwords
+      const response = await axios.get('https://edulearnbackend-ffiv.onrender.com/api/admin/students/all', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
         }
-      } catch (err) {
-        console.log('❌ /api/auth/all-students failed:', err.response?.status);
-      }
-      
-      // Try endpoint 2: /api/admin/students
-      if (!success) {
-        try {
-          console.log('🔵 Trying endpoint: /api/admin/students');
-          response = await axios.get('https://edulearnbackend-ffiv.onrender.com/api/admin/students', {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json'
-            }
-          });
-          
-          if (response.data.success) {
-            success = true;
-            console.log('✅ Success from /api/admin/students');
-          }
-        } catch (err) {
-          console.log('❌ /api/admin/students failed:', err.response?.status);
-        }
-      }
-      
-      if (!success) {
-        throw new Error('Unable to fetch students from any endpoint');
-      }
-      
-      console.log('🔵 Response data:', response.data);
-      
-      let studentData = [];
-      if (response.data.students) {
-        studentData = response.data.students;
-      } else if (response.data.data) {
-        studentData = response.data.data;
-      } else if (Array.isArray(response.data)) {
-        studentData = response.data;
-      }
-      
-      // Enhance student data with additional info from profile
-      const enhancedStudents = studentData.map(student => ({
-        ...student,
-        username: student.username || student.email?.split('@')[0] || 'student',
-        displayPassword: student.password || 'Student@123',
-        age: student.profile?.age || student.age || 'N/A',
-        gender: student.profile?.gender || student.gender || 'N/A',
-        dob: student.profile?.dob || student.profile?.dateOfBirth || student.dob || 'N/A'
-      }));
-      
-      console.log(`🔵 Found ${enhancedStudents.length} students`);
-      
-      setStudents(enhancedStudents);
-      setFilteredStudents(enhancedStudents);
-      
-      const now = new Date();
-      const monthAgo = new Date(now.setMonth(now.getMonth() - 1));
-      
-      setStats({
-        total: enhancedStudents.length,
-        active: enhancedStudents.filter(s => s.isActive !== false).length,
-        newThisMonth: enhancedStudents.filter(s => {
-          if (!s.createdAt) return false;
-          return new Date(s.createdAt) >= monthAgo;
-        }).length
       });
+      
+      if (response.data.success) {
+        const studentsData = response.data.students;
+        
+        // Enhance student data - use actual password if available, otherwise placeholder
+        const enhancedStudents = studentsData.map(student => ({
+          ...student,
+          displayPassword: student.password !== '••••••••' ? student.password : 'Student@123',
+          age: student.age || student.profile?.age || 'N/A',
+          gender: student.gender || student.profile?.gender || 'N/A',
+          dob: student.dob || student.profile?.dob || 'N/A'
+        }));
+        
+        console.log(`🔵 Found ${enhancedStudents.length} students`);
+        
+        setStudents(enhancedStudents);
+        setFilteredStudents(enhancedStudents);
+        
+        const now = new Date();
+        const monthAgo = new Date(now.setMonth(now.getMonth() - 1));
+        
+        setStats({
+          total: enhancedStudents.length,
+          active: enhancedStudents.filter(s => s.isActive !== false).length,
+          newThisMonth: enhancedStudents.filter(s => {
+            if (!s.createdAt) return false;
+            return new Date(s.createdAt) >= monthAgo;
+          }).length
+        });
+      } else {
+        throw new Error('Failed to fetch students');
+      }
       
     } catch (error) {
       console.error('❌ Error fetching students:', error);
@@ -220,7 +176,7 @@ const StudentList = () => {
         <div className="text-center">
           <Loader2 className="w-16 h-16 text-emerald-600 animate-spin mx-auto mb-4" />
           <p className="text-gray-700 text-lg font-medium animate-pulse">Loading students...</p>
-          <p className="text-gray-500 text-sm mt-2">Fetching all student records</p>
+          <p className="text-gray-500 text-sm mt-2">Fetching student credentials...</p>
         </div>
       </div>
     );
@@ -228,14 +184,13 @@ const StudentList = () => {
 
   if (error) {
     return (
-      <div className="min-h-[500px] bg-gradient-to-br from-red-50 to-orange-50 rounded-3xl flex items-center justify-center">
-        <div className="text-center p-8">
+      <div className="min-h-[500px] bg-gradient-to-br from-red-50 to-orange-50 rounded-3xl flex items-center justify-center p-8">
+        <div className="text-center">
           <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
-          <p className="text-red-600 text-lg font-semibold mb-2">Error Loading Students</p>
-          <p className="text-gray-600 mb-6">{error}</p>
+          <p className="text-red-600 text-lg font-semibold mb-2">{error}</p>
           <button
             onClick={fetchAllStudents}
-            className="px-6 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-xl hover:shadow-lg transition-all transform hover:scale-105"
+            className="px-6 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-xl hover:shadow-lg transition-all"
           >
             <RefreshCw className="w-4 h-4 inline mr-2" />
             Retry
@@ -397,19 +352,19 @@ const StudentList = () => {
                   <div className="mb-3 p-2 bg-gradient-to-r from-emerald-50 to-teal-50 rounded-lg">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <Lock className="w-4 h-4 text-teal-600" />
+                        <Key className="w-4 h-4 text-teal-600" />
                         <span className="text-gray-700 text-sm font-medium">Password:</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <code className="bg-white border border-teal-200 rounded-lg px-3 py-1.5 text-gray-800 text-sm font-mono">
-                          {student.displayPassword || 'Student@123'}
+                          {student.displayPassword}
                         </code>
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleCopyToClipboard(student.displayPassword || 'Student@123', 'password', student._id);
+                            handleCopyToClipboard(student.displayPassword, 'password', student._id);
                           }}
-                          className="text-gray-500 hover:text-teal-600 transition-colors p-1.5"
+                          className="text-gray-500 hover:text-teal-600 p-1.5"
                           title="Copy password"
                         >
                           {copiedField === `${student._id}-password` ? 
@@ -419,6 +374,7 @@ const StudentList = () => {
                         </button>
                       </div>
                     </div>
+                    <p className="text-teal-500 text-xs italic mt-1">Student's login credentials</p>
                   </div>
                   
                   {/* Age, Gender, DOB */}
@@ -580,15 +536,15 @@ const StudentList = () => {
                   </div>
                   <div className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl p-4">
                     <p className="text-gray-500 text-sm mb-1 flex items-center gap-2">
-                      <Lock className="w-4 h-4 text-emerald-500" />
+                      <Key className="w-4 h-4 text-emerald-500" />
                       Password
                     </p>
                     <div className="flex items-center gap-2">
                       <code className="bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-gray-800 text-sm font-mono flex-1">
-                        {selectedStudent.displayPassword || 'Student@123'}
+                        {selectedStudent.displayPassword}
                       </code>
                       <button
-                        onClick={() => handleCopyToClipboard(selectedStudent.displayPassword || 'Student@123', 'modal-password', selectedStudent._id)}
+                        onClick={() => handleCopyToClipboard(selectedStudent.displayPassword, 'modal-password', selectedStudent._id)}
                         className="p-1.5 text-gray-500 hover:text-emerald-600"
                       >
                         {copiedField === `${selectedStudent._id}-modal-password` ? <CheckCircle className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
