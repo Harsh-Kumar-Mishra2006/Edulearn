@@ -22,7 +22,9 @@ import {
   Sparkles,
   Shield,
   RefreshCw,
-  Key
+  Key,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 
 const TeachersList = ({ 
@@ -48,6 +50,40 @@ const TeachersList = ({
   const [totalTeachers, setTotalTeachers] = useState(0);
   const [copiedField, setCopiedField] = useState(null);
   const [expandedTeacher, setExpandedTeacher] = useState(null);
+  const [showPasswords, setShowPasswords] = useState({});
+  const [fetchingPasswords, setFetchingPasswords] = useState({});
+
+  const togglePasswordVisibility = (teacherId) => {
+    setShowPasswords(prev => ({
+      ...prev,
+      [teacherId]: !prev[teacherId]
+    }));
+  };
+
+  const fetchTeacherPassword = async (teacherId) => {
+    setFetchingPasswords(prev => ({ ...prev, [teacherId]: true }));
+    
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`https://edulearnbackend-ffiv.onrender.com/api/admin/teachers/${teacherId}/credentials`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        return data.password || data.tempPassword || null;
+      }
+      return null;
+    } catch (error) {
+      console.error('Error fetching password:', error);
+      return null;
+    } finally {
+      setFetchingPasswords(prev => ({ ...prev, [teacherId]: false }));
+    }
+  };
 
   const fetchTeachers = async () => {
     try {
@@ -85,36 +121,22 @@ const TeachersList = ({
         teacher.status !== 'inactive' && teacher.status !== 'deleted'
       );
       
-      // Fetch actual passwords for each teacher from the backend
+      // Fetch passwords for all teachers in parallel
       const teachersWithPasswords = await Promise.all(activeTeachers.map(async (teacher) => {
-        try {
-          // Try to get password from the teacher data first (if returned from add)
-          let password = teacher.password || teacher.tempPassword;
-          
-          // If no password, try to fetch from credentials endpoint
-          if (!password || password === '••••••••') {
-            const credResponse = await fetch(`https://edulearnbackend-ffiv.onrender.com/api/admin/teachers/${teacher._id}/credentials`, {
-              headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (credResponse.ok) {
-              const credData = await credResponse.json();
-              password = credData.password || '••••••••';
-            }
-          }
-          
-          return {
-            ...teacher,
-            displayPassword: password || 'Teacher@123',
-            username: teacher.username || teacher.email?.split('@')[0]
-          };
-        } catch (err) {
-          console.error('Error fetching password for teacher:', teacher.email);
-          return {
-            ...teacher,
-            displayPassword: 'Teacher@123',
-            username: teacher.username || teacher.email?.split('@')[0]
-          };
+        // First check if password is already in the teacher object
+        let password = teacher.password || teacher.tempPassword;
+        
+        // If no password found, fetch from credentials endpoint
+        if (!password || password === '••••••••') {
+          password = await fetchTeacherPassword(teacher._id);
         }
+        
+        return {
+          ...teacher,
+          displayPassword: password || 'Teacher@123',
+          username: teacher.username || teacher.email?.split('@')[0],
+          passwordFetched: true
+        };
       }));
       
       setTeachers(teachersWithPasswords);
@@ -208,7 +230,7 @@ const TeachersList = ({
       />
 
       {showHeader && (
-        <div className="relative z-10 flex justify-between items-center mb-8">
+        <div className="relative z-10 flex justify-between items-center mb-8 flex-wrap gap-4">
           <div>
             <h3 className="text-3xl font-bold bg-gradient-to-r from-indigo-700 to-purple-700 bg-clip-text text-transparent">
               {headerTitle}
@@ -223,6 +245,7 @@ const TeachersList = ({
             <button
               onClick={fetchTeachers}
               className="p-2 bg-white/60 rounded-full hover:bg-white transition-all"
+              title="Refresh teachers list"
             >
               <RefreshCw className="w-5 h-5 text-indigo-600" />
             </button>
@@ -242,7 +265,7 @@ const TeachersList = ({
             {currentTeachers.map((teacher, index) => (
               <motion.div
                 key={teacher._id}
-                className="bg-white/90 backdrop-blur-sm rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 border border-white/50"
+                className="bg-white/90 backdrop-blur-sm rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 border border-white/50 cursor-pointer"
                 initial={{ opacity: 0, y: 30 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.05 }}
@@ -273,7 +296,7 @@ const TeachersList = ({
                 <div className="pt-12 p-5">
                   <h4 className="text-xl font-bold text-gray-800">{teacher.name}</h4>
                   
-                  <div className="flex items-center gap-2 mt-1">
+                  <div className="flex items-center gap-2 mt-1 flex-wrap">
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs">
                       <Shield className="w-3 h-3" />
                       Teacher
@@ -289,7 +312,7 @@ const TeachersList = ({
                   {/* Username */}
                   <div className="mt-3 flex items-center gap-2 text-gray-600 text-sm">
                     <User className="w-4 h-4 text-indigo-500" />
-                    <span className="font-mono text-xs bg-gray-100 px-2 py-1 rounded">
+                    <span className="font-mono text-xs bg-gray-100 px-2 py-1 rounded flex-1">
                       {teacher.username}
                     </span>
                     <button
@@ -297,7 +320,7 @@ const TeachersList = ({
                         e.stopPropagation();
                         handleCopyToClipboard(teacher.username, 'username', teacher._id);
                       }}
-                      className="ml-auto text-gray-400 hover:text-indigo-600"
+                      className="text-gray-400 hover:text-indigo-600"
                     >
                       {copiedField === `${teacher._id}-username` ? <CheckCircle className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3" />}
                     </button>
@@ -318,31 +341,65 @@ const TeachersList = ({
                     </button>
                   </div>
 
-                  {/* Password Section - Directly Visible with actual password */}
+                  {/* Password Section - Viewable Format */}
                   {showPasswordColumn && (
                     <div className="mt-3 p-3 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl">
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
                           <Key className="w-4 h-4 text-purple-600" />
                           <span className="text-gray-700 text-sm font-medium">Password:</span>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <code className="bg-white border border-purple-200 rounded-lg px-3 py-1.5 text-gray-800 text-sm font-mono">
-                            {teacher.displayPassword}
-                          </code>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleCopyToClipboard(teacher.displayPassword, 'password', teacher._id);
-                            }}
-                            className="text-gray-500 hover:text-purple-600 p-1.5"
-                            title="Copy password"
-                          >
-                            {copiedField === `${teacher._id}-password` ? <CheckCircle className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
-                          </button>
-                        </div>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            togglePasswordVisibility(teacher._id);
+                          }}
+                          className="text-purple-600 hover:text-purple-700 p-1 rounded-lg transition-colors"
+                          title={showPasswords[teacher._id] ? "Hide password" : "Show password"}
+                        >
+                          {showPasswords[teacher._id] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
                       </div>
-                      <p className="text-purple-500 text-xs italic mt-1">Admin-set password • Copy for teacher</p>
+                      
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 bg-white border border-purple-200 rounded-lg px-3 py-2">
+                          {fetchingPasswords[teacher._id] ? (
+                            <div className="flex items-center gap-2">
+                              <Loader2 className="w-4 h-4 animate-spin text-purple-600" />
+                              <span className="text-gray-500 text-sm">Loading...</span>
+                            </div>
+                          ) : (
+                            <code className="text-gray-800 text-sm font-mono break-all">
+                              {showPasswords[teacher._id] 
+                                ? teacher.displayPassword 
+                                : '••••••••'}
+                            </code>
+                          )}
+                        </div>
+                        
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (teacher.displayPassword && teacher.displayPassword !== '••••••••') {
+                              handleCopyToClipboard(teacher.displayPassword, 'password', teacher._id);
+                            }
+                          }}
+                          className="text-gray-500 hover:text-purple-600 p-2 rounded-lg transition-colors"
+                          title="Copy password"
+                          disabled={!teacher.displayPassword || teacher.displayPassword === '••••••••'}
+                        >
+                          {copiedField === `${teacher._id}-password` ? (
+                            <CheckCircle className="w-4 h-4 text-green-500" />
+                          ) : (
+                            <Copy className="w-4 h-4" />
+                          )}
+                        </button>
+                      </div>
+                      
+                      <p className="text-purple-500 text-xs italic mt-2 flex items-center gap-1">
+                        <Lock className="w-3 h-3" />
+                        Click the eye icon to view password
+                      </p>
                     </div>
                   )}
 
