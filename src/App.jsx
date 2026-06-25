@@ -101,7 +101,7 @@ const App = () => {
           <Route path="/test" element={<Test/>}/>
           <Route path='/quiz-creator' element={<Quiz/>}/>
           <Route path="/quiz/attempt/:attemptId" element={<QuizAttempt />} />
-          <Route path="/student-record" element={<StudentDashboard/>}/>
+          <Route path="/certificates" element={<StudentDashboard/>}/>
           <Route path="/assignments" element={<StudentAssignmentView/>}/>
 
           {/* Individual pages */}

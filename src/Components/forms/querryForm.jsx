@@ -1,6 +1,20 @@
+// components/StudentQueryForm.jsx
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, AlertCircle, CheckCircle, Loader, MessageSquare, Lightbulb, User, Mail, Phone } from 'lucide-react';
+import { 
+  Send, 
+  AlertCircle, 
+  CheckCircle, 
+  Loader2, 
+  MessageSquare, 
+  User, 
+  Mail, 
+  Phone,
+  Sparkles,
+  Shield,
+  Lock,
+  RefreshCw
+} from 'lucide-react';
 
 const StudentQueryForm = () => {
   const [formData, setFormData] = useState({
@@ -15,15 +29,16 @@ const StudentQueryForm = () => {
   const [submitStatus, setSubmitStatus] = useState({ type: '', message: '' });
   const [focusedField, setFocusedField] = useState(null);
   const [formProgress, setFormProgress] = useState(0);
+  const [charCount, setCharCount] = useState(0);
 
   // Calculate form progress
   useEffect(() => {
     let filled = 0;
-    if (formData.name) filled += 20;
-    if (formData.email) filled += 20;
-    if (formData.phone) filled += 20;
-    if (formData.issue) filled += 20;
-    if (formData.suggestion) filled += 20;
+    if (formData.name.trim()) filled += 20;
+    if (formData.email.trim()) filled += 20;
+    if (formData.phone.trim()) filled += 20;
+    if (formData.issue.trim()) filled += 20;
+    if (formData.suggestion.trim()) filled += 20;
     setFormProgress(filled);
   }, [formData]);
 
@@ -33,10 +48,23 @@ const StudentQueryForm = () => {
       ...prev,
       [name]: value
     }));
+    if (name === 'issue') {
+      setCharCount(value.length);
+    }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Validate all required fields
+    if (!formData.name.trim() || !formData.email.trim() || !formData.phone.trim() || !formData.issue.trim() || !formData.suggestion.trim()) {
+      setSubmitStatus({
+        type: 'error',
+        message: 'Please fill in all required fields.'
+      });
+      return;
+    }
+
     setLoading(true);
     setSubmitStatus({ type: '', message: '' });
 
@@ -54,7 +82,7 @@ const StudentQueryForm = () => {
       if (data.success) {
         setSubmitStatus({
           type: 'success',
-          message: 'Your query has been submitted successfully!'
+          message: 'Your query has been submitted successfully! ✨'
         });
         setFormData({
           name: '',
@@ -63,17 +91,18 @@ const StudentQueryForm = () => {
           issue: '',
           suggestion: ''
         });
+        setCharCount(0);
         setFormProgress(0);
       } else {
         setSubmitStatus({
           type: 'error',
-          message: data.error || 'Failed to submit query'
+          message: data.error || 'Failed to submit query. Please try again.'
         });
       }
     } catch (error) {
       setSubmitStatus({
         type: 'error',
-        message: 'Network error. Please try again.'
+        message: 'Network error. Please check your connection and try again.'
       });
     } finally {
       setLoading(false);
@@ -105,87 +134,29 @@ const StudentQueryForm = () => {
     }
   };
 
-  const floatingAnimation = {
-    initial: { y: 0 },
-    animate: {
-      y: [0, -20, 0],
-      transition: {
-        duration: 6,
-        repeat: Infinity,
-        ease: "easeInOut"
-      }
-    }
-  };
-
   return (
     <motion.div
       initial="hidden"
       animate="visible"
       variants={containerVariants}
-      className="min-h-screen bg-gradient-to-br from-cyan-200 via-sky-200 to-fuchsia-200 flex items-center justify-center p-4 relative overflow-hidden"
+      className="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-100 to-pink-100 flex items-center justify-center p-4 relative overflow-hidden"
     >
-      {/* Animated background elements */}
+      {/* Animated Background - Matching TeachersList Style */}
       <motion.div
-        className="absolute inset-0 overflow-hidden"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 1 }}
-      >
-        <motion.div
-          className="absolute -top-40 -right-40 w-80 h-80 bg-blue-200 rounded-full mix-blend-multiply filter blur-xl opacity-70"
-          animate={{
-            x: [0, 100, 0],
-            y: [0, -100, 0],
-          }}
-          transition={{
-            duration: 20,
-            repeat: Infinity,
-            ease: "linear"
-          }}
-        />
-        <motion.div
-          className="absolute -bottom-40 -left-40 w-80 h-80 bg-blue-300 rounded-full mix-blend-multiply filter blur-xl opacity-70"
-          animate={{
-            x: [0, -100, 0],
-            y: [0, 100, 0],
-          }}
-          transition={{
-            duration: 25,
-            repeat: Infinity,
-            ease: "linear"
-          }}
-        />
-        <motion.div
-          className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-blue-100 rounded-full mix-blend-multiply filter blur-xl opacity-50"
-          animate={{
-            scale: [1, 1.2, 1],
-          }}
-          transition={{
-            duration: 15,
-            repeat: Infinity,
-            ease: "easeInOut"
-          }}
-        />
-      </motion.div>
-
-      {/* Decorative floating elements */}
+        className="absolute -top-40 -right-40 w-80 h-80 bg-gradient-to-br from-indigo-300 to-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-30"
+        animate={{ x: [0, 30, 0], y: [0, -30, 0] }}
+        transition={{ duration: 15, repeat: Infinity }}
+      />
       <motion.div
-        className="absolute top-20 left-20 text-blue-200 opacity-20"
-        variants={floatingAnimation}
-        initial="initial"
-        animate="animate"
-      >
-        <MessageSquare size={60} />
-      </motion.div>
-      
+        className="absolute -bottom-40 -left-40 w-80 h-80 bg-gradient-to-br from-purple-300 to-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-30"
+        animate={{ x: [0, -30, 0], y: [0, 30, 0] }}
+        transition={{ duration: 18, repeat: Infinity }}
+      />
       <motion.div
-        className="absolute bottom-20 right-20 text-blue-200 opacity-20"
-        variants={floatingAnimation}
-        initial="initial"
-        animate="animate"
-      >
-        <Lightbulb size={60} />
-      </motion.div>
+        className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-gradient-to-br from-indigo-200 to-purple-200 rounded-full mix-blend-multiply filter blur-3xl opacity-20"
+        animate={{ scale: [1, 1.2, 1] }}
+        transition={{ duration: 20, repeat: Infinity }}
+      />
 
       {/* Main form card */}
       <motion.div
@@ -193,26 +164,12 @@ const StudentQueryForm = () => {
         className="relative w-full max-w-3xl z-10"
       >
         <motion.div
-          className="bg-white/90 backdrop-blur-xl rounded-3xl shadow-2xl overflow-hidden border border-blue-100"
-          whileHover={{ boxShadow: '0 25px 50px -12px rgba(37, 99, 235, 0.3)' }}
+          className="bg-white/90 backdrop-blur-xl rounded-3xl shadow-2xl overflow-hidden border border-white/50"
+          whileHover={{ boxShadow: '0 25px 50px -12px rgba(99, 102, 241, 0.4)' }}
           transition={{ type: 'spring', stiffness: 300, damping: 20 }}
         >
-          {/* Header with animated gradient */}
-          <motion.div
-            className="relative h-40 bg-gradient-to-r from-blue-600 via-blue-500 to-blue-400 flex items-center justify-center overflow-hidden"
-            animate={{
-              backgroundPosition: ['0% 50%', '100% 50%', '0% 50%'],
-            }}
-            transition={{
-              duration: 10,
-              repeat: Infinity,
-              ease: "linear"
-            }}
-            style={{
-              backgroundSize: '200% 200%',
-            }}
-          >
-            {/* Animated overlay */}
+          {/* Header with gradient matching TeachersList */}
+          <div className="relative h-40 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 flex items-center justify-center overflow-hidden">
             <motion.div
               className="absolute inset-0 bg-white/10"
               animate={{
@@ -225,36 +182,7 @@ const StudentQueryForm = () => {
               }}
             />
             
-            {/* Header content */}
-            <motion.div
-              className="text-center z-10"
-              initial={{ y: -20 }}
-              animate={{ y: 0 }}
-              transition={{ type: 'spring', stiffness: 200, damping: 10 }}
-            >
-              <motion.h1
-                className="text-3xl md:text-4xl font-bold text-white mb-2"
-                animate={{
-                  textShadow: [
-                    '0 0 8px rgba(255,255,255,0.5)',
-                    '0 0 16px rgba(255,255,255,0.8)',
-                    '0 0 8px rgba(255,255,255,0.5)'
-                  ],
-                }}
-                transition={{
-                  duration: 2,
-                  repeat: Infinity,
-                  ease: "easeInOut"
-                }}
-              >
-                Student Query Form
-              </motion.h1>
-              <p className="text-blue-100 text-sm md:text-base">
-                Share your thoughts and concerns with the administration
-              </p>
-            </motion.div>
-
-            {/* Decorative circles */}
+            {/* Decorative elements */}
             <motion.div
               className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full"
               animate={{
@@ -279,28 +207,69 @@ const StudentQueryForm = () => {
                 ease: "linear"
               }}
             />
-          </motion.div>
+
+            {/* Header content */}
+            <motion.div
+              className="text-center z-10"
+              initial={{ y: -20 }}
+              animate={{ y: 0 }}
+              transition={{ type: 'spring', stiffness: 200, damping: 10 }}
+            >
+              <motion.h1
+                className="text-3xl md:text-4xl font-bold text-white mb-2 flex items-center justify-center gap-3"
+                animate={{
+                  textShadow: [
+                    '0 0 8px rgba(255,255,255,0.3)',
+                    '0 0 16px rgba(255,255,255,0.6)',
+                    '0 0 8px rgba(255,255,255,0.3)'
+                  ],
+                }}
+                transition={{
+                  duration: 2,
+                  repeat: Infinity,
+                  ease: "easeInOut"
+                }}
+              >
+                <MessageSquare className="w-8 h-8" />
+                Student Query Form
+              </motion.h1>
+              <p className="text-indigo-100 text-sm md:text-base">
+                Share your thoughts and concerns with the administration
+              </p>
+            </motion.div>
+          </div>
 
           {/* Animated progress bar */}
-          <motion.div
-            className="h-1.5 bg-blue-100"
-            initial={{ width: '0%' }}
-            animate={{ width: `${formProgress}%` }}
-            transition={{ duration: 0.3 }}
-          >
+          <div className="relative">
             <motion.div
-              className="h-full bg-gradient-to-r from-blue-600 to-blue-400"
-              animate={{
-                backgroundPosition: ['0% 50%', '100% 50%', '0% 50%'],
-              }}
-              transition={{
-                duration: 2,
-                repeat: Infinity,
-                ease: "linear"
-              }}
-              style={{ backgroundSize: '200% 200%' }}
-            />
-          </motion.div>
+              className="h-1.5 bg-indigo-100"
+              initial={{ width: '0%' }}
+              animate={{ width: `${formProgress}%` }}
+              transition={{ duration: 0.3 }}
+            >
+              <motion.div
+                className="h-full bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600"
+                animate={{
+                  backgroundPosition: ['0% 50%', '100% 50%', '0% 50%'],
+                }}
+                transition={{
+                  duration: 2,
+                  repeat: Infinity,
+                  ease: "linear"
+                }}
+                style={{ backgroundSize: '200% 200%' }}
+              />
+            </motion.div>
+            {formProgress > 0 && (
+              <motion.span
+                className="absolute -top-5 right-0 text-xs font-semibold text-indigo-600"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+              >
+                {formProgress}%
+              </motion.span>
+            )}
+          </div>
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="p-6 md:p-8 space-y-6">
@@ -311,9 +280,9 @@ const StudentQueryForm = () => {
                 <motion.label
                   htmlFor="name"
                   className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2"
-                  animate={focusedField === 'name' ? { color: '#2563eb', x: 5 } : { color: '#374151', x: 0 }}
+                  animate={focusedField === 'name' ? { color: '#6366f1' } : { color: '#374151' }}
                 >
-                  <User size={16} className={focusedField === 'name' ? 'text-blue-600' : 'text-gray-400'} />
+                  <User size={16} className={focusedField === 'name' ? 'text-indigo-600' : 'text-gray-400'} />
                   <span>Full Name</span>
                   <span className="text-red-500">*</span>
                 </motion.label>
@@ -326,9 +295,9 @@ const StudentQueryForm = () => {
                   onFocus={() => setFocusedField('name')}
                   onBlur={() => setFocusedField(null)}
                   required
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all duration-200 bg-white/50 backdrop-blur-sm"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 transition-all duration-200 bg-white/50 backdrop-blur-sm"
                   placeholder="Enter your full name"
-                  whileFocus={{ scale: 1.02, boxShadow: '0 10px 25px -5px rgba(37, 99, 235, 0.2)' }}
+                  whileFocus={{ scale: 1.02, boxShadow: '0 10px 25px -5px rgba(99, 102, 241, 0.2)' }}
                 />
               </div>
 
@@ -337,9 +306,9 @@ const StudentQueryForm = () => {
                 <motion.label
                   htmlFor="email"
                   className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2"
-                  animate={focusedField === 'email' ? { color: '#2563eb', x: 5 } : { color: '#374151', x: 0 }}
+                  animate={focusedField === 'email' ? { color: '#6366f1' } : { color: '#374151' }}
                 >
-                  <Mail size={16} className={focusedField === 'email' ? 'text-blue-600' : 'text-gray-400'} />
+                  <Mail size={16} className={focusedField === 'email' ? 'text-indigo-600' : 'text-gray-400'} />
                   <span>Email Address</span>
                   <span className="text-red-500">*</span>
                 </motion.label>
@@ -352,9 +321,9 @@ const StudentQueryForm = () => {
                   onFocus={() => setFocusedField('email')}
                   onBlur={() => setFocusedField(null)}
                   required
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all duration-200 bg-white/50 backdrop-blur-sm"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 transition-all duration-200 bg-white/50 backdrop-blur-sm"
                   placeholder="Enter your email address"
-                  whileFocus={{ scale: 1.02, boxShadow: '0 10px 25px -5px rgba(37, 99, 235, 0.2)' }}
+                  whileFocus={{ scale: 1.02, boxShadow: '0 10px 25px -5px rgba(99, 102, 241, 0.2)' }}
                 />
               </div>
 
@@ -363,9 +332,9 @@ const StudentQueryForm = () => {
                 <motion.label
                   htmlFor="phone"
                   className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2"
-                  animate={focusedField === 'phone' ? { color: '#2563eb', x: 5 } : { color: '#374151', x: 0 }}
+                  animate={focusedField === 'phone' ? { color: '#6366f1' } : { color: '#374151' }}
                 >
-                  <Phone size={16} className={focusedField === 'phone' ? 'text-blue-600' : 'text-gray-400'} />
+                  <Phone size={16} className={focusedField === 'phone' ? 'text-indigo-600' : 'text-gray-400'} />
                   <span>Phone Number</span>
                   <span className="text-red-500">*</span>
                 </motion.label>
@@ -378,29 +347,23 @@ const StudentQueryForm = () => {
                   onFocus={() => setFocusedField('phone')}
                   onBlur={() => setFocusedField(null)}
                   required
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all duration-200 bg-white/50 backdrop-blur-sm"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 transition-all duration-200 bg-white/50 backdrop-blur-sm"
                   placeholder="Enter your phone number"
-                  whileFocus={{ scale: 1.02, boxShadow: '0 10px 25px -5px rgba(37, 99, 235, 0.2)' }}
+                  whileFocus={{ scale: 1.02, boxShadow: '0 10px 25px -5px rgba(99, 102, 241, 0.2)' }}
                 />
               </div>
             </motion.div>
 
-            {/* Query Section */}
+            {/* Issue/Query Section */}
             <motion.div variants={itemVariants}>
               <motion.label
                 htmlFor="issue"
                 className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2"
-                animate={focusedField === 'issue' ? { color: '#2563eb', x: 5 } : { color: '#374151', x: 0 }}
+                animate={focusedField === 'issue' ? { color: '#6366f1' } : { color: '#374151' }}
               >
-                <MessageSquare size={18} className={focusedField === 'issue' ? 'text-blue-600' : 'text-gray-400'} />
+                <MessageSquare size={18} className={focusedField === 'issue' ? 'text-indigo-600' : 'text-gray-400'} />
                 <span>Issue / Query</span>
-                <motion.span
-                  className="text-red-500 text-lg"
-                  animate={{ scale: [1, 1.2, 1] }}
-                  transition={{ duration: 1.5, repeat: Infinity }}
-                >
-                  *
-                </motion.span>
+                <span className="text-red-500">*</span>
               </motion.label>
               
               <motion.textarea
@@ -412,12 +375,11 @@ const StudentQueryForm = () => {
                 onFocus={() => setFocusedField('issue')}
                 onBlur={() => setFocusedField(null)}
                 required
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all duration-200 resize-none bg-white/50 backdrop-blur-sm"
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 transition-all duration-200 resize-none bg-white/50 backdrop-blur-sm"
                 placeholder="Describe your issue or query in detail..."
                 whileFocus={{ 
                   scale: 1.02, 
-                  boxShadow: '0 20px 30px -10px rgba(37, 99, 235, 0.2)',
-                  borderColor: '#3b82f6'
+                  boxShadow: '0 20px 30px -10px rgba(99, 102, 241, 0.2)',
                 }}
                 transition={{ type: 'spring', stiffness: 300, damping: 20 }}
               />
@@ -428,15 +390,44 @@ const StudentQueryForm = () => {
                     initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -10 }}
-                    className="mt-2 text-xs text-blue-600 font-medium"
+                    className="mt-2 text-xs text-indigo-600 font-medium"
                   >
-                    {formData.issue.length} characters
+                    {charCount} characters
                   </motion.div>
                 )}
               </AnimatePresence>
             </motion.div>
 
-            
+            {/* Suggestion Section - Added back */}
+            <motion.div variants={itemVariants}>
+              <motion.label
+                htmlFor="suggestion"
+                className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2"
+                animate={focusedField === 'suggestion' ? { color: '#6366f1' } : { color: '#374151' }}
+              >
+                <Sparkles size={18} className={focusedField === 'suggestion' ? 'text-indigo-600' : 'text-gray-400'} />
+                <span>Suggestion / Feedback</span>
+                <span className="text-red-500">*</span>
+              </motion.label>
+              
+              <motion.textarea
+                id="suggestion"
+                name="suggestion"
+                rows="3"
+                value={formData.suggestion}
+                onChange={handleChange}
+                onFocus={() => setFocusedField('suggestion')}
+                onBlur={() => setFocusedField(null)}
+                required
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 transition-all duration-200 resize-none bg-white/50 backdrop-blur-sm"
+                placeholder="Share your suggestions or feedback to help us improve..."
+                whileFocus={{ 
+                  scale: 1.02, 
+                  boxShadow: '0 20px 30px -10px rgba(99, 102, 241, 0.2)',
+                }}
+                transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+              />
+            </motion.div>
 
             {/* Status message */}
             <AnimatePresence mode="wait">
@@ -478,16 +469,16 @@ const StudentQueryForm = () => {
             <motion.div variants={itemVariants}>
               <motion.button
                 type="submit"
-                disabled={loading || !formData.name || !formData.email || !formData.phone || !formData.issue || !formData.suggestion}
-                className="w-full bg-gradient-to-r from-blue-600 to-blue-500 text-white py-4 px-6 rounded-xl font-semibold text-lg shadow-lg disabled:opacity-50 disabled:cursor-not-allowed relative overflow-hidden group"
-                whileHover={!loading && formData.name && formData.email && formData.phone && formData.issue && formData.suggestion ? { 
+                disabled={loading || !formData.name.trim() || !formData.email.trim() || !formData.phone.trim() || !formData.issue.trim() || !formData.suggestion.trim()}
+                className="w-full bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white py-4 px-6 rounded-xl font-semibold text-lg shadow-lg disabled:opacity-50 disabled:cursor-not-allowed relative overflow-hidden group"
+                whileHover={!loading && formData.name.trim() && formData.email.trim() && formData.phone.trim() && formData.issue.trim() && formData.suggestion.trim() ? { 
                   scale: 1.02, 
-                  boxShadow: '0 25px 35px -10px rgba(37, 99, 235, 0.5)',
+                  boxShadow: '0 25px 35px -10px rgba(99, 102, 241, 0.5)',
                 } : {}}
-                whileTap={!loading && formData.name && formData.email && formData.phone && formData.issue && formData.suggestion ? { scale: 0.98 } : {}}
+                whileTap={!loading && formData.name.trim() && formData.email.trim() && formData.phone.trim() && formData.issue.trim() && formData.suggestion.trim() ? { scale: 0.98 } : {}}
               >
                 <motion.div
-                  className="absolute inset-0 bg-gradient-to-r from-blue-500 to-blue-400"
+                  className="absolute inset-0 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500"
                   animate={{ x: ['0%', '100%', '0%'] }}
                   transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
                   style={{ opacity: 0.3 }}
@@ -504,14 +495,14 @@ const StudentQueryForm = () => {
                   {loading ? (
                     <>
                       <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: "linear" }}>
-                        <Loader size={20} />
+                        <Loader2 size={20} />
                       </motion.div>
                       <span>Submitting...</span>
                     </>
                   ) : (
                     <>
                       <motion.div
-                        animate={formData.name && formData.email && formData.phone && formData.issue && formData.suggestion ? { x: [0, 5, 0] } : {}}
+                        animate={formData.name.trim() && formData.email.trim() && formData.phone.trim() && formData.issue.trim() && formData.suggestion.trim() ? { x: [0, 5, 0] } : {}}
                         transition={{ duration: 1.5, repeat: Infinity }}
                       >
                         <Send size={20} />
@@ -530,7 +521,7 @@ const StudentQueryForm = () => {
             >
               Your query will be sent directly to the administration for review.
               <motion.span
-                className="block mt-2 text-blue-600 font-medium"
+                className="block mt-2 text-indigo-600 font-medium"
                 animate={{ opacity: [0.5, 1, 0.5], scale: [1, 1.05, 1] }}
                 transition={{ duration: 2.5, repeat: Infinity }}
               >
@@ -551,12 +542,12 @@ const StudentQueryForm = () => {
 
         {/* Decorative corner accents */}
         <motion.div
-          className="absolute -top-3 -left-3 w-6 h-6 border-t-4 border-l-4 border-blue-400 rounded-tl-2xl"
+          className="absolute -top-3 -left-3 w-6 h-6 border-t-4 border-l-4 border-indigo-400 rounded-tl-2xl"
           animate={{ opacity: [0.3, 0.8, 0.3] }}
           transition={{ duration: 2, repeat: Infinity }}
         />
         <motion.div
-          className="absolute -bottom-3 -right-3 w-6 h-6 border-b-4 border-r-4 border-blue-400 rounded-br-2xl"
+          className="absolute -bottom-3 -right-3 w-6 h-6 border-b-4 border-r-4 border-pink-400 rounded-br-2xl"
           animate={{ opacity: [0.3, 0.8, 0.3] }}
           transition={{ duration: 2, repeat: Infinity, delay: 1 }}
         />
