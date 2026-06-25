@@ -50,7 +50,6 @@ const Navbar = () => {
         /*{ name: 'My Courses', href: '/my-courses', current: false },*/
         { name: 'Create Course', href: '/create-course', current: false },
         { name: 'Quiz', href: '/quiz-creator', current: false },
-        { name: 'Analytics', href: '/analytics', current: false },
       ];
     } else if (user?.role === 'admin') {
       return [
