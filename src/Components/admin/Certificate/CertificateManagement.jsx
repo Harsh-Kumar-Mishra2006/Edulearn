@@ -1,4 +1,3 @@
-// src/Components/admin/Certificate/CertificateManagement.jsx
 import React, { useState, useEffect } from 'react';
 import { 
   Upload, 
@@ -9,8 +8,7 @@ import {
   Calendar,
   Mail,
   User,
-  Shield,
-  AlertCircle
+  Shield
 } from 'lucide-react';
 
 const API_BASE_URL = 'https://edulearnbackend-ffiv.onrender.com/api';
@@ -24,100 +22,80 @@ const CertificateManagement = () => {
 
   const [uploadForm, setUploadForm] = useState({
     student_email: '',
-    course_title: '',           // ← NEW: Manual course title
+    course_title: '',
     completion_date: new Date().toISOString().split('T')[0],
     certificate_file: null
   });
 
-  const getAuthToken = () => {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      window.location.href = '/login';
-      return null;
-    }
-    return token;
-  };
-
-  const handleUnauthorized = () => {
-    localStorage.clear();
-    window.location.href = '/';
-  };
-
-  const getCurrentUser = () => {
-    const userData = localStorage.getItem('userData');
-    return userData ? JSON.parse(userData) : null;
-  };
-
-  const isAdmin = () => user?.role === 'admin';
-
   useEffect(() => {
-    const currentUser = getCurrentUser();
+    const userData = localStorage.getItem('userData');
+    const currentUser = userData ? JSON.parse(userData) : null;
     setUser(currentUser);
-    if (currentUser && isAdmin()) {
+    
+    if (currentUser) {
       loadCertificates();
       loadStats();
     }
   }, []);
 
   const loadCertificates = async () => {
-  try {
-    setLoading(true);
-    // ⚠️ NO TOKEN NEEDED
-    const res = await fetch(`${API_BASE_URL}/certificates`);
-    if (!res.ok) throw new Error();
-    const data = await res.json();
-    setCertificates(data.success ? data.data || [] : []);
-  } catch (err) {
-    alert('Failed to load certificates');
-  } finally {
-    setLoading(false);
-  }
-};
+    try {
+      setLoading(true);
+      const res = await fetch(`${API_BASE_URL}/certificates`);
+      if (!res.ok) throw new Error('Failed to load');
+      const data = await res.json();
+      setCertificates(data.success ? data.data || [] : []);
+    } catch (err) {
+      console.error('Load error:', err);
+      alert('Failed to load certificates');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const loadStats = async () => {
-  try {
-    // ⚠️ NO TOKEN NEEDED
-    const res = await fetch(`${API_BASE_URL}/certificates/stats`);
-    if (res.ok) {
-      const data = await res.json();
-      if (data.success) setStats(data.data);
+    try {
+      const res = await fetch(`${API_BASE_URL}/certificates/stats`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) setStats(data.data);
+      }
+    } catch (err) {
+      console.error('Stats error:', err);
     }
-  } catch (err) { }
-};
+  };
 
   const handleUpload = async (e) => {
     e.preventDefault();
+    
     if (!uploadForm.student_email || !uploadForm.course_title || !uploadForm.certificate_file) {
       alert('Please fill all fields and select a file');
       return;
     }
 
     setUploadLoading(true);
-    //const token = getAuthToken();
-    //if (!token) return;
 
     const formData = new FormData();
     formData.append('student_email', uploadForm.student_email);
-    formData.append('course_title', uploadForm.course_title);  // ← Manual title
+    formData.append('course_title', uploadForm.course_title);
     formData.append('completion_date', uploadForm.completion_date);
     formData.append('certificate_file', uploadForm.certificate_file);
 
     try {
       const res = await fetch(`${API_BASE_URL}/certificates/upload`, {
         method: 'POST',
-        //headers: { Authorization: `Bearer ${token}` },
         body: formData
       });
 
-      if (res.status === 401) return handleUnauthorized();
       const result = await res.json();
+      console.log('Upload response:', result);
       
       if (!res.ok) {
         alert(result.error || 'Upload failed');
         return;
       }
 
-      alert('Certificate uploaded successfully!');
+      alert('✅ Certificate uploaded successfully!');
       setUploadForm({
         student_email: '',
         course_title: '',
@@ -128,7 +106,8 @@ const CertificateManagement = () => {
       loadCertificates();
       loadStats();
     } catch (err) {
-      alert('Upload failed');
+      console.error('Upload error:', err);
+      alert('Upload failed: ' + err.message);
     } finally {
       setUploadLoading(false);
     }
@@ -153,40 +132,41 @@ const CertificateManagement = () => {
   };
 
   const handleDownload = async (id, filename) => {
-  try {
-    // ⚠️ NO TOKEN NEEDED
-    const res = await fetch(`${API_BASE_URL}/certificates/${id}/download`);
-    if (!res.ok) throw new Error();
-    const blob = await res.blob();
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename || 'certificate.pdf';
-    a.click();
-    window.URL.revokeObjectURL(url);
-  } catch (err) {
-    alert('Download failed');
-  }
-};
+    try {
+      const res = await fetch(`${API_BASE_URL}/certificates/${id}/download`);
+      if (!res.ok) throw new Error('Download failed');
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename || 'certificate.pdf';
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      alert('Download failed: ' + err.message);
+    }
+  };
 
   const handleRevoke = async (id) => {
-  if (!confirm('Revoke this certificate?')) return;
-  try {
-    // ⚠️ NO TOKEN NEEDED
-    const res = await fetch(`${API_BASE_URL}/certificates/${id}/revoke`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ reason: 'Admin request' })
-    });
-    if (res.ok) {
-      alert('Revoked successfully');
-      loadCertificates();
-      loadStats();
+    if (!confirm('Revoke this certificate?')) return;
+    try {
+      const res = await fetch(`${API_BASE_URL}/certificates/${id}/revoke`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: 'Admin request' })
+      });
+      if (res.ok) {
+        alert('✅ Revoked successfully');
+        loadCertificates();
+        loadStats();
+      } else {
+        const data = await res.json();
+        alert(data.error || 'Revoke failed');
+      }
+    } catch (err) {
+      alert('Failed to revoke: ' + err.message);
     }
-  } catch (err) {
-    alert('Failed to revoke');
-  }
-};
+  };
 
   const formatFileSize = (bytes) => {
     if (!bytes) return '0 B';
@@ -196,8 +176,17 @@ const CertificateManagement = () => {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
-  if (!user) return <div className="min-h-screen bg-gray-50 flex items-center justify-center"><div className="text-center"><Shield className="h-16 w-16 text-gray-400 mx-auto mb-4" /><h2 className="text-2xl font-bold">Login Required</h2></div></div>;
-  if (!isAdmin()) return <div className="min-h-screen bg-gray-50 flex items-center justify-center"><div className="text-center"><Shield className="h-16 w-16 text-red-500 mx-auto mb-4" /><h2 className="text-2xl font-bold text-red-600">Access Denied</h2><p>Only admins can access this page</p></div></div>;
+  // Loading state
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <Shield className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold">Login Required</h2>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
@@ -209,25 +198,37 @@ const CertificateManagement = () => {
 
         {/* Stats */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          {[
-            { label: "Total", value: stats.total, icon: FileText, color: "blue" },
-            { label: "Issued", value: stats.issued, icon: CheckCircle, color: "green" },
-            { label: "Revoked", value: stats.revoked, icon: XCircle, color: "red" }
-          ].map((item, i) => (
-            <div key={i} className="bg-white rounded-xl shadow p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600">{item.label}</p>
-                  <p className={`text-3xl font-bold text-${item.color}-600`}>{item.value}</p>
-                </div>
-                <item.icon className={`h-10 w-10 text-${item.color}-500`} />
+          <div className="bg-white rounded-xl shadow p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600">Total</p>
+                <p className="text-3xl font-bold text-blue-600">{stats.total}</p>
               </div>
+              <FileText className="h-10 w-10 text-blue-500" />
             </div>
-          ))}
+          </div>
+          <div className="bg-white rounded-xl shadow p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600">Issued</p>
+                <p className="text-3xl font-bold text-green-600">{stats.issued}</p>
+              </div>
+              <CheckCircle className="h-10 w-10 text-green-500" />
+            </div>
+          </div>
+          <div className="bg-white rounded-xl shadow p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600">Revoked</p>
+                <p className="text-3xl font-bold text-red-600">{stats.revoked}</p>
+              </div>
+              <XCircle className="h-10 w-10 text-red-500" />
+            </div>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Upload Form — NO COURSE DROPDOWN */}
+          {/* Upload Form */}
           <div className="bg-white rounded-xl shadow-lg p-6">
             <h2 className="text-2xl font-bold mb-6 flex items-center gap-3">
               <Upload className="h-6 w-6" /> Upload Certificate
@@ -313,7 +314,7 @@ const CertificateManagement = () => {
             </form>
           </div>
 
-          {/* Certificate List Table */}
+          {/* Certificate List */}
           <div className="lg:col-span-2 bg-white rounded-xl shadow-lg overflow-hidden">
             <div className="p-6 border-b">
               <h2 className="text-2xl font-bold">All Certificates ({certificates.length})</h2>
