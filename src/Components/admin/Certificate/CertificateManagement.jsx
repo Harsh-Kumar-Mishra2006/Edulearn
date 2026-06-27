@@ -40,7 +40,7 @@ const CertificateManagement = () => {
 
   const handleUnauthorized = () => {
     localStorage.clear();
-    window.location.href = '/login';
+    window.location.href = '/';
   };
 
   const getCurrentUser = () => {
@@ -60,40 +60,30 @@ const CertificateManagement = () => {
   }, []);
 
   const loadCertificates = async () => {
-    try {
-      setLoading(true);
-      const token = getAuthToken();
-      if (!token) return;
-
-      const res = await fetch(`${API_BASE_URL}/certificates`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-
-      if (res.status === 401) return handleUnauthorized();
-      if (!res.ok) throw new Error();
-
-      const data = await res.json();
-      setCertificates(data.success ? data.data || [] : []);
-    } catch (err) {
-      alert('Failed to load certificates');
-    } finally {
-      setLoading(false);
-    }
-  };
+  try {
+    setLoading(true);
+    // ⚠️ NO TOKEN NEEDED
+    const res = await fetch(`${API_BASE_URL}/certificates`);
+    if (!res.ok) throw new Error();
+    const data = await res.json();
+    setCertificates(data.success ? data.data || [] : []);
+  } catch (err) {
+    alert('Failed to load certificates');
+  } finally {
+    setLoading(false);
+  }
+};
 
   const loadStats = async () => {
-    try {
-      const token = getAuthToken();
-      if (!token) return;
-      const res = await fetch(`${API_BASE_URL}/certificates/stats`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success) setStats(data.data);
-      }
-    } catch (err) { }
-  };
+  try {
+    // ⚠️ NO TOKEN NEEDED
+    const res = await fetch(`${API_BASE_URL}/certificates/stats`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success) setStats(data.data);
+    }
+  } catch (err) { }
+};
 
   const handleUpload = async (e) => {
     e.preventDefault();
@@ -103,8 +93,8 @@ const CertificateManagement = () => {
     }
 
     setUploadLoading(true);
-    const token = getAuthToken();
-    if (!token) return;
+    //const token = getAuthToken();
+    //if (!token) return;
 
     const formData = new FormData();
     formData.append('student_email', uploadForm.student_email);
@@ -115,7 +105,7 @@ const CertificateManagement = () => {
     try {
       const res = await fetch(`${API_BASE_URL}/certificates/upload`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
+        //headers: { Authorization: `Bearer ${token}` },
         body: formData
       });
 
@@ -163,47 +153,40 @@ const CertificateManagement = () => {
   };
 
   const handleDownload = async (id, filename) => {
-    const token = getAuthToken();
-    if (!token) return;
-    try {
-      const res = await fetch(`${API_BASE_URL}/certificates/${id}/download`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (!res.ok) throw new Error();
-      const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename || 'certificate.pdf';
-      a.click();
-      window.URL.revokeObjectURL(url);
-    } catch (err) {
-      alert('Download failed');
-    }
-  };
+  try {
+    // ⚠️ NO TOKEN NEEDED
+    const res = await fetch(`${API_BASE_URL}/certificates/${id}/download`);
+    if (!res.ok) throw new Error();
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename || 'certificate.pdf';
+    a.click();
+    window.URL.revokeObjectURL(url);
+  } catch (err) {
+    alert('Download failed');
+  }
+};
 
   const handleRevoke = async (id) => {
-    if (!confirm('Revoke this certificate?')) return;
-    const token = getAuthToken();
-    if (!token) return;
-    try {
-      const res = await fetch(`${API_BASE_URL}/certificates/${id}/revoke`, {
-        method: 'PUT',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ reason: 'Admin request' })
-      });
-      if (res.ok) {
-        alert('Revoked successfully');
-        loadCertificates();
-        loadStats();
-      }
-    } catch (err) {
-      alert('Failed to revoke');
+  if (!confirm('Revoke this certificate?')) return;
+  try {
+    // ⚠️ NO TOKEN NEEDED
+    const res = await fetch(`${API_BASE_URL}/certificates/${id}/revoke`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason: 'Admin request' })
+    });
+    if (res.ok) {
+      alert('Revoked successfully');
+      loadCertificates();
+      loadStats();
     }
-  };
+  } catch (err) {
+    alert('Failed to revoke');
+  }
+};
 
   const formatFileSize = (bytes) => {
     if (!bytes) return '0 B';
