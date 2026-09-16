@@ -524,7 +524,7 @@ const CredentialsInfoBox = ({ credentials, onClose, onCopy, copiedField }) => (
         </div>
 
         <div className="mb-4">
-          <label className="block text-white/80 text-sm font-medium mb-2">Temporary Password</label>
+          <label className="block text-white/80 text-sm font-medium mb-2">Password</label>
           <div className="flex items-center gap-2">
             <input
               type="text"
