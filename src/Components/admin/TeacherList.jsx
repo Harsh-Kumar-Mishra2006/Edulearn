@@ -342,7 +342,7 @@ const TeachersList = ({
                   </div>
 
                   {/* Password Section - Viewable Format */}
-                  {showPasswordColumn && (
+                  {/* {showPasswordColumn && (
                     <div className="mt-3 p-3 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl">
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
@@ -401,7 +401,7 @@ const TeachersList = ({
                         Click the eye icon to view password
                       </p>
                     </div>
-                  )}
+                  )} */}
 
                   {/* Course & Phone */}
                   <div className="mt-3 grid grid-cols-2 gap-2">

@@ -418,7 +418,7 @@ const StudentList = () => {
                   </div>
 
                   {/* Password Section */}
-                  <div className="mb-3 p-3 bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl">
+                  {/* <div className="mb-3 p-3 bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <Lock className="w-4 h-4 text-teal-600" />
@@ -456,7 +456,7 @@ const StudentList = () => {
                       </div>
                     </div>
                     <p className="text-teal-500 text-xs italic mt-2">Student's login credentials • Click eye to view</p>
-                  </div>
+                  </div> */}
                   
                   {/* Age, Gender, DOB */}
                   <div className="flex flex-wrap gap-2">
