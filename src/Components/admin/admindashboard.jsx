@@ -568,12 +568,12 @@ const CredentialsInfoBox = ({ credentials, onClose, onCopy, copiedField }) => (
         </div>
       </div>
 
-      <div className="bg-yellow-500/20 border border-yellow-400/50 rounded-lg p-4">
+      {/* <div className="bg-yellow-500/20 border border-yellow-400/50 rounded-lg p-4">
         <p className="text-yellow-200 text-sm text-center">
           <strong>Important:</strong> Share these credentials with the teacher. 
           They must change their password after first login.
         </p>
-      </div>
+      </div> */}
 
       <button
         onClick={onClose}
